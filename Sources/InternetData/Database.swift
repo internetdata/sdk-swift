@@ -303,7 +303,7 @@ public struct Database: Sendable, Hashable {
     /// What a licence permits.
     public enum LicenseType: String, Sendable, Hashable, CaseIterable {
         case evaluation
-        case `internal`
+        case standard
         case redistribute
     }
 }
@@ -421,7 +421,7 @@ extension Database.LicenseType {
     init?(_ wire: Components.Schemas.Database.LicenseTypePayload) {
         switch wire {
         case .evaluation: self = .evaluation
-        case ._internal: self = .internal
+        case .standard: self = .standard
         case .redistribute: self = .redistribute
         case ._empty_: return nil
         }

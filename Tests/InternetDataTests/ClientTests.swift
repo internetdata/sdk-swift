@@ -152,7 +152,7 @@ struct ClientTests {
         #expect(databases[0].base == "bogon_ip")
         #expect(databases[0].name == "Bogon IP")
         #expect(databases[0].standing == .licensed)
-        #expect(databases[0].license_type == .internal)
+        #expect(databases[0].license_type == .standard)
         #expect(databases[0].starts != nil)
         #expect(databases[0].expires == nil, "a licence with no end date has no expiry")
         let version = try #require(databases[0].versions.first)
