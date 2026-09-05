@@ -1,0 +1,11 @@
+generate:
+  - types
+  - client
+accessModifier: internal
+namingStrategy: idiomatic
+# v1 is legacy and customer-specific (a `?apikey=` query credential, a different
+# error vocabulary, no listing). Only the v2 tag is generated, so the wire types
+# in this package are the ones this client actually speaks.
+filter:
+  tags:
+    - Database v2

@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # The floor Package.swift declares, and the current release. The floor
+        # is not decorative: swift-openapi-generator's own tools version is 6.1,
+        # so nothing older can resolve this package at all.
+        swift: ['6.1', '6.3']
+    container: swift:${{ matrix.swift }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: swift build
+      - run: swift test
+
+  # The one platform family the maintainers cannot test locally, so this job is
+  # the only Apple coverage there is.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: swift --version
+      - run: swift test
+
+  # `swift build` only ever targets the host, so the declared iOS floor would be
+  # a claim nothing checks. This compiles the library for it.
+  # -skipPackagePluginValidation is required: the OpenAPI generator is a build
+  # plugin, and Xcode refuses to run an unvalidated one non-interactively.
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          xcodebuild build \
+            -scheme InternetData \
+            -destination 'generic/platform=iOS' \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO

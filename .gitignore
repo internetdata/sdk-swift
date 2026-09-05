@@ -1,0 +1,14 @@
+# SwiftPM build output and local state.
+.build/
+.swiftpm/
+
+# Xcode.
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+*.hmap
+
+# Resolved fresh on every integration run, so the daily run keeps testing
+# whatever tag is newest.
+integration/Package.resolved

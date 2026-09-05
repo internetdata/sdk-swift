@@ -1,0 +1,31 @@
+name: Integration
+
+# Exercises the package as PUBLISHED, against staging. CI builds this working
+# tree; nothing there would notice a tag that never landed, a product a consumer
+# cannot name, or a build plugin that only ever ran for us.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+  schedule:
+    # Off the hour on purpose: scheduled runs bunched at :00 are queued behind
+    # everyone else's and can be dropped entirely under load.
+    - cron: '43 6 * * *'
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    container: swift:6.3
+    steps:
+      - uses: actions/checkout@v7
+      # One entry point, used identically by a human and by this job: it skips
+      # with a reason when no tag satisfies the declared range, and skips from
+      # inside the suite when the key is absent.
+      #
+      # A secret that does not exist interpolates to an empty string here, which
+      # the suite treats as absent.
+      - run: ./scripts/run.sh
+        working-directory: integration
+        env:
+          INTERNETDATA_STAGING_KEY: ${{ secrets.INTERNETDATA_STAGING_KEY }}
