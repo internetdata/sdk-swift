@@ -40,8 +40,8 @@ struct DatabaseTests {
             }
             guard database.standing == .licensed else {
                 #expect(
-                    database.redistribution == nil,
-                    "\(database.base) is not licensed but permits redistribution",
+                    database.license_type == nil,
+                    "\(database.base) is not licensed but permits license_type",
                 )
                 continue
             }
@@ -50,7 +50,7 @@ struct DatabaseTests {
             // is the assertion no fixture can make: the spec says only
             // `format: date-time`.
             #expect(database.starts != nil, "\(database.base) lost its licence start date")
-            #expect(database.redistribution != nil, "\(database.base) is licensed for nothing")
+            #expect(database.license_type != nil, "\(database.base) is licensed for nothing")
         }
 
         // Without this the comparisons above are vacuous: an unauthenticated

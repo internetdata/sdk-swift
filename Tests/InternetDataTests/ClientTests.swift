@@ -120,7 +120,7 @@ struct ClientTests {
                         "name": "Bogon IP",
                         "summary": "Reserved, private or otherwise non-routable IP ranges.",
                         "standing": "licensed",
-                        "redistribution": "internal",
+                        "license_type": "standard",
                         "starts": "2026-09-04T18:04:26.431Z",
                         "expires": NSNull(),
                         "versions": [[
@@ -135,7 +135,7 @@ struct ClientTests {
                         "name": "VPN IP",
                         "summary": "VPN exit addresses.",
                         "standing": "unlicensed",
-                        "redistribution": NSNull(),
+                        "license_type": NSNull(),
                         "starts": NSNull(),
                         "expires": NSNull(),
                         "versions": [[
@@ -152,7 +152,7 @@ struct ClientTests {
         #expect(databases[0].base == "bogon_ip")
         #expect(databases[0].name == "Bogon IP")
         #expect(databases[0].standing == .licensed)
-        #expect(databases[0].redistribution == .internal)
+        #expect(databases[0].license_type == .internal)
         #expect(databases[0].starts != nil)
         #expect(databases[0].expires == nil, "a licence with no end date has no expiry")
         let version = try #require(databases[0].versions.first)
@@ -160,9 +160,9 @@ struct ClientTests {
         #expect(version.version == 1)
         #expect(version.formats == [.csvgz, .mmdb])
 
-        // No licence is a null on the wire, not an "unlicensed" redistribution.
+        // No licence is a null on the wire, not an "unlicensed" license_type.
         #expect(databases[1].standing == .unlicensed)
-        #expect(databases[1].redistribution == nil)
+        #expect(databases[1].license_type == nil)
         #expect(databases[1].starts == nil)
     }
 
@@ -515,7 +515,7 @@ extension ClientTests {
             "name": base,
             "summary": "\(base) summary",
             "standing": "licensed",
-            "redistribution": "internal",
+            "license_type": "standard",
             "starts": starts,
             "expires": NSNull(),
             "versions": [["id": "\(base)_v1", "version": 1, "summary": "v1", "formats": ["csvgz"]]],

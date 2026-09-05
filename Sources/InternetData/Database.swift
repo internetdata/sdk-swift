@@ -282,7 +282,7 @@ public struct Database: Sendable, Hashable {
     public let standing: Standing
     /// What your licence permits you to do with the data, or `nil` when there is
     /// no licence.
-    public let redistribution: Redistribution?
+    public let license_type: LicenseType?
     public let starts: Date?
     /// `nil` when the licence has no end date, or when there is none.
     public let expires: Date?
@@ -301,7 +301,7 @@ public struct Database: Sendable, Hashable {
     }
 
     /// What a licence permits.
-    public enum Redistribution: String, Sendable, Hashable, CaseIterable {
+    public enum LicenseType: String, Sendable, Hashable, CaseIterable {
         case evaluation
         case `internal`
         case redistribute
@@ -390,7 +390,7 @@ extension Database {
         self.name = wire.name
         self.summary = wire.summary
         self.standing = Standing(wire.standing)
-        self.redistribution = wire.redistribution.flatMap(Redistribution.init)
+        self.license_type = wire.license_type.flatMap(LicenseType.init)
         self.starts = wire.starts
         self.expires = wire.expires
         self.versions = wire.versions.map(DatabaseVersion.init)
@@ -409,7 +409,7 @@ extension Database.Standing {
     }
 }
 
-extension Database.Redistribution {
+extension Database.LicenseType {
     /// `nil` for the generator's `_empty_` case.
     ///
     /// The spec spells "no licence" as `nullable: true` PLUS a `null` member of
@@ -418,7 +418,7 @@ extension Database.Redistribution {
     /// Optional rather than as that case, so `_empty_` should be unreachable;
     /// mapping it to "no licence" rather than trapping keeps a surprise from
     /// becoming a crash in a caller's process.
-    init?(_ wire: Components.Schemas.Database.RedistributionPayload) {
+    init?(_ wire: Components.Schemas.Database.LicenseTypePayload) {
         switch wire {
         case .evaluation: self = .evaluation
         case ._internal: self = .internal

@@ -16,7 +16,7 @@ import Testing
 struct Corpus: Decodable, Sendable {
     let errors: [ErrorCase]
     let standings: [String]
-    let redistribution: [String]
+    let license_type: [String]
     let formats: [String]
     let visibility: Visibility
 

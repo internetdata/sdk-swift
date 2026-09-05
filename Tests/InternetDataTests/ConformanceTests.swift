@@ -76,7 +76,7 @@ struct ConformanceTests {
     func vocabulariesMatchTheCorpus() {
         #expect(Set(Database.Standing.allCases.map(\.rawValue)) == Set(corpus.standings))
         #expect(
-            Set(Database.Redistribution.allCases.map(\.rawValue)) == Set(corpus.redistribution),
+            Set(Database.LicenseType.allCases.map(\.rawValue)) == Set(corpus.license_type),
         )
         #expect(Set(DatabaseFormat.allCases.map(\.rawValue)) == Set(corpus.formats))
     }
@@ -169,7 +169,7 @@ extension ConformanceTests {
             "name": base,
             "summary": "\(base) summary",
             "standing": standing,
-            "redistribution": standing == "licensed" ? "internal" : NSNull(),
+            "license_type": standing == "licensed" ? "standard" : NSNull(),
             "starts": standing == "licensed" ? "2026-09-04T18:04:26.431Z" : NSNull(),
             "expires": NSNull(),
             "versions": [[
