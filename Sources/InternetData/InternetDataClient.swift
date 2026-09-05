@@ -18,8 +18,18 @@ public struct InternetDataClient: Sendable {
     /// The licensed database downloads.
     public let database: DatabaseAPI
 
-    public init(options: Options) {
+    public init(options: Options = Options()) {
         precondition(options.retries >= 0, "retries cannot be negative")
+
+        // Attached only when there is a key, so a keyless client sends no
+        // `Authorization` header rather than `Bearer ` with nothing behind it -
+        // which is what an unset `${{ secrets.X }}` interpolates to, and which
+        // the API answers 401 to rather than treating as no credential at all.
+        var middlewares: [any ClientMiddleware] = []
+        if let apiKey = options.apiKey, apiKey.isEmpty == false {
+            middlewares.append(AuthMiddleware(apiKey: apiKey))
+        }
+        middlewares.append(ErrorMiddleware())
 
         // Resolved once, because the download path calls object storage straight
         // through the transport rather than through the generated client and has
@@ -29,7 +39,7 @@ public struct InternetDataClient: Sendable {
             serverURL: options.baseURL,
             configuration: Configuration(dateTranscoder: LenientDateTranscoder()),
             transport: transport,
-            middlewares: [AuthMiddleware(apiKey: options.apiKey), ErrorMiddleware()],
+            middlewares: middlewares,
         )
         self.database = DatabaseAPI(api: api, transport: transport, retries: options.retries)
     }
@@ -42,11 +52,13 @@ public struct InternetDataClient: Sendable {
 }
 
 extension InternetDataClient {
-    /// How a client behaves. Everything but the key has a default.
+    /// How a client behaves. Everything has a default.
     public struct Options: Sendable {
-        /// Your API key, carrying the `db.download` scope. Every endpoint here
-        /// needs one: there is no unauthenticated tier.
-        public var apiKey: String
+        /// Your API key, carrying the `db.download` scope. Optional: omit it and
+        /// no `Authorization` header is sent at all. Every endpoint published
+        /// today answers `401` without one, but that is what the API serves
+        /// rather than a property of its shape.
+        public var apiKey: String?
         public var baseURL: URL
         /// Retry attempts for a transient failure. Default 2.
         public var retries: Int
@@ -56,7 +68,7 @@ extension InternetDataClient {
         public var transport: (any ClientTransport)?
 
         public init(
-            apiKey: String,
+            apiKey: String? = nil,
             baseURL: URL = InternetDataClient.defaultBaseURL,
             retries: Int = 2,
             transport: (any ClientTransport)? = nil,

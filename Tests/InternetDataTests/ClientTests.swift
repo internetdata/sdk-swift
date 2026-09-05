@@ -24,6 +24,22 @@ struct ClientTests {
         await #expect(stub.authorizations == ["Bearer sk-test", "Bearer sk-test"])
     }
 
+    // Today every endpoint is licensed, so a keyless client only ever gets a
+    // 401. It still has to BUILD and to send no credential at all: an empty key
+    // is what an unset `${{ secrets.X }}` interpolates to, and `Bearer ` with
+    // nothing behind it is a worse answer than no header.
+    @Test("a keyless client builds and sends no authorization header")
+    func keylessClientSendsNoAuthorization() async throws {
+        for apiKey in [nil, ""] as [String?] {
+            let stub = StubTransport([StubTransport.listPath: .json(["databases": []])])
+
+            _ = try await InternetDataClient(options: .init(apiKey: apiKey, transport: stub))
+                .database.list()
+
+            await #expect(stub.authorizations == [nil], "apiKey \(String(describing: apiKey))")
+        }
+    }
+
     @Test("retries are configurable, and a client error still is not retried")
     func retriesAreConfigurable() async throws {
         let failing = StubTransport([

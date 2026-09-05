@@ -55,9 +55,12 @@ struct DatabaseTests {
 
         // Without this the comparisons above are vacuous: an unauthenticated
         // request is a 401, but a request that merely LOOKED authenticated is
-        // indistinguishable from a real one until you check.
-        let carriedKey = await transport.facts.allSatisfy { $0.carriedKey }
-        #expect(carriedKey, "the staging key never reached the wire")
+        // indistinguishable from a real one until you check. The emptiness check
+        // is not redundant - `allSatisfy` is TRUE on no requests at all, which is
+        // the one shape that would let this pass having proved nothing.
+        let facts = await transport.facts
+        #expect(facts.isEmpty == false, "no request was recorded, so nothing was proved")
+        #expect(facts.allSatisfy { $0.carriedKey }, "the staging key never reached the wire")
     }
 
     @Test("a database the organization does not license is refused cleanly", Credential.needsKey)

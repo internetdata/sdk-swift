@@ -30,7 +30,7 @@ Requires Swift 6.1 or newer, and macOS 13, iOS 16, tvOS 16, watchOS 9 or visionO
 
 ## Usage
 
-Every call needs an API key carrying the `db.download` scope. Access is granted by contract, one database family at a time, so there is no self-serve signup: [talk to us](https://internetdata.io) and we will issue one.
+Every database published today needs an API key carrying the `db.download` scope. Access is granted by contract, one family at a time, so there is no self-serve signup: [talk to us](https://internetdata.io) and we will issue one. `apiKey` is nevertheless optional - a client built without one sends no `Authorization` header at all, ready for a database served without a licence.
 
 ```swift
 import InternetData
