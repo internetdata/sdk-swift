@@ -142,8 +142,6 @@ Note that `rateLimited` and `quotaExceeded` both arrive as HTTP 429 and are not 
 
 ### What `list` shows you
 
-The catalog is not the same for everyone. A database built for a single customer is absent from everybody else's listing rather than shown as `unlicensed`, so `list` is the whole of what your key may see, and `standing` tells you where you stand on each entry you can see.
-
 Nothing here is cached, deliberately, and you should not cache it either: a listing belongs to the key that fetched it, and reusing one across keys will show an organization a catalog that is not its own.
 
 ### Supplying your own transport
