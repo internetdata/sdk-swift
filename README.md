@@ -1,4 +1,4 @@
-# [<img src="https://s3.internetdata.io/internetdata-public/brand/mark.svg" alt="InternetData" width="24"/>](https://internetdata.io/) InternetData Swift Client Library
+# [<img src="https://s3.internetdata.io/internetdata-public/brand/mark.svg" alt="InternetData" height="28"/>](https://internetdata.io/) InternetData Swift Client Library
 
 [![Swift](https://img.shields.io/badge/swift-6.1%2B-F05138.svg)](https://swift.org)
 [![license](https://img.shields.io/github/license/internetdata/sdk-swift)](LICENSE)
