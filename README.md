@@ -37,11 +37,13 @@ import InternetData
 
 let client = InternetDataClient(apiKey: ProcessInfo.processInfo.environment["INTERNETDATA_API_KEY"]!)
 
-for database in try await client.list() {
+for database in try await client.database.list() {
     print(database.base, database.standing, database.versions.map(\.id))
     // vpn_ip  licensed  ["vpn_ip_v1"]
 }
 ```
+
+Every call lives under `client.database`. The downloads are the whole of this API today, but the sibling VPNDetection client spells the same seven calls the same way, so a codebase holding both does not have to remember which one is flat.
 
 A licence is held against a FAMILY (`vpn_ip`), while a download names a VERSION (`vpn_ip_v1`), so the ids everything below takes come from `versions`. Old versions are frozen rather than migrated, so both stay downloadable.
 
@@ -56,7 +58,7 @@ let client = InternetDataClient(options: .init(apiKey: key, retries: 4))
 `metadata` carries the build date, the row count, the columns and the size of every format, without downloading anything. Poll it to decide whether today's build is worth fetching, and read `size` to budget the transfer:
 
 ```swift
-let metadata = try await client.metadata(id: "vpn_ip_v1")
+let metadata = try await client.database.metadata(id: "vpn_ip_v1")
 
 print(metadata.updated)              // "2026-09-04"
 print(metadata.entries)              // 3_214_887
@@ -72,7 +74,7 @@ Not every database is built in every format: the `_provider` catalogs are keyed 
 `download` streams straight to disk, so nothing bigger than a single chunk is ever held in memory whatever the file weighs. It writes a neighbouring `.part` file and renames it on success, so a transfer that dies half way leaves nothing that reads as a whole database:
 
 ```swift
-let written = try await client.download(
+let written = try await client.database.download(
     "vpn_ip_v1", format: .mmdb,
     to: URL(fileURLWithPath: "vpn_ip_v1.mmdb"),
 )
@@ -82,7 +84,7 @@ print("\(written) bytes")
 Hand it a closure instead when the bytes are going somewhere other than a file: a parser, an archive, another socket. The closure is awaited, so a slow sink slows the transfer rather than queueing behind it:
 
 ```swift
-try await client.download("vpn_ip_v1", format: .csvgz) { chunk in
+try await client.database.download("vpn_ip_v1", format: .csvgz) { chunk in
     try await gunzip.write(chunk)
 }
 ```
@@ -90,7 +92,7 @@ try await client.download("vpn_ip_v1", format: .csvgz) { chunk in
 `downloadBytes` hands the whole file back at once. It holds all of it in memory, and the catalog spans seven orders of magnitude, so reach for it at the small end and use `download` for anything you have not measured:
 
 ```swift
-let bytes = try await client.downloadBytes("bogon_asn_v1", format: .csvgz)
+let bytes = try await client.database.downloadBytes("bogon_asn_v1", format: .csvgz)
 ```
 
 ### Download links you can hand out
@@ -98,7 +100,7 @@ let bytes = try await client.downloadBytes("bogon_asn_v1", format: .csvgz)
 The API answers a download with a `302` to a time-limited link that carries its own signature, so `downloadURL` gives you something you can pass to a job runner, a CDN or a shell script that holds no API key at all:
 
 ```swift
-let url = try await client.downloadURL(id: "vpn_ip_v1", format: .mmdb)
+let url = try await client.database.downloadURL(id: "vpn_ip_v1", format: .mmdb)
 ```
 
 The link authorizes the START of a transfer, so one already running is not interrupted when it lapses.
@@ -108,7 +110,7 @@ The link authorizes the START of a transfer, so one already running is not inter
 `checksums` returns the whole published digest set for one file rather than a single algorithm:
 
 ```swift
-let checksums = try await client.checksums(id: "vpn_ip_v1", format: .mmdb)
+let checksums = try await client.database.checksums(id: "vpn_ip_v1", format: .mmdb)
 print(checksums.sha256)
 ```
 
@@ -117,7 +119,7 @@ print(checksums.sha256)
 `downloads` lists what your organization has fetched, newest first. Refusals are listed too, because a denial is what answers "it stopped working" and its absence answers nothing:
 
 ```swift
-for attempt in try await client.downloads(limit: 20) {
+for attempt in try await client.database.downloads(limit: 20) {
     print(attempt.created, attempt.datasetId, attempt.outcome, attempt.bytes ?? 0)
 }
 ```
@@ -128,7 +130,7 @@ Failures throw an `InternetDataError` carrying a `kind`, the API's own `rc` as i
 
 ```swift
 do {
-    _ = try await client.metadata(id: "vpn_ip_v1")
+    _ = try await client.database.metadata(id: "vpn_ip_v1")
 } catch let error as InternetDataError {
     print(error.kind, error.message, error.isRetryable)
 }

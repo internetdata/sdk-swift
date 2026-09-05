@@ -16,8 +16,8 @@ struct ClientTests {
         ])
         let client = client(stub, apiKey: "sk-test")
 
-        _ = try await client.list()
-        _ = try await client.downloads()
+        _ = try await client.database.list()
+        _ = try await client.database.downloads()
 
         // Bearer is the only scheme v2 accepts; v1's `?apikey=` put the key in a
         // query string, where it lands in every access log on the way.
@@ -30,7 +30,7 @@ struct ClientTests {
             StubTransport.metadataPath: .json(["rc": "UNAVAILABLE"], status: 503)
         ])
         await #expect(throws: InternetDataError.self) {
-            try await client(failing, retries: 2).metadata(id: "bogon_ip_v1")
+            try await client(failing, retries: 2).database.metadata(id: "bogon_ip_v1")
         }
         await #expect(failing.callCount == 3, "one attempt plus two retries")
 
@@ -38,7 +38,7 @@ struct ClientTests {
             StubTransport.metadataPath: .json(["rc": "UNKNOWN_DATASET"], status: 404)
         ])
         let failure = await #expect(throws: InternetDataError.self) {
-            try await client(refusing, retries: 3).metadata(id: "nope_v1")
+            try await client(refusing, retries: 3).database.metadata(id: "nope_v1")
         }
         #expect(try #require(failure).kind == .badRequest)
         #expect(try #require(failure).isRetryable == false)
@@ -53,7 +53,7 @@ struct ClientTests {
         ])
 
         let failure = await #expect(throws: InternetDataError.self) {
-            try await client(stub, retries: 5).list()
+            try await client(stub, retries: 5).database.list()
         }
         #expect(try #require(failure).kind == .quotaExceeded)
         await #expect(stub.callCount == 1)
@@ -67,7 +67,7 @@ struct ClientTests {
 
         let started = ContinuousClock.now
         await #expect(throws: InternetDataError.self) {
-            try await client(stub, retries: 1).list()
+            try await client(stub, retries: 1).database.list()
         }
         await #expect(stub.callCount == 2)
         // The header, not the backoff schedule, decides the wait.
@@ -84,7 +84,7 @@ struct ClientTests {
         // reaches the code that decides what a cancellation looks like.
         let client = client(stub, retries: 0)
 
-        let call = Task { try await client.list() }
+        let call = Task { try await client.database.list() }
         try await Task.sleep(for: .milliseconds(100))
         call.cancel()
 
@@ -130,7 +130,7 @@ struct ClientTests {
             ])
         ])
 
-        let databases = try await client(stub).list()
+        let databases = try await client(stub).database.list()
 
         #expect(databases.count == 2)
         #expect(databases[0].base == "bogon_ip")
@@ -165,7 +165,7 @@ struct ClientTests {
             ])
         ])
 
-        let databases = try await client(stub).list()
+        let databases = try await client(stub).database.list()
 
         #expect(databases.count == 2)
         for database in databases {
@@ -192,7 +192,7 @@ struct ClientTests {
             ])
         ])
 
-        let downloads = try await client(stub).downloads(limit: 3)
+        let downloads = try await client(stub).database.downloads(limit: 3)
 
         let attempt = try #require(downloads.first)
         #expect(attempt.datasetId == "bogon_asn_v1")
@@ -223,7 +223,7 @@ struct ClientTests {
             ])
         ])
 
-        let checksums = try await client(stub).checksums(id: "bogon_asn_v1", format: .csvgz)
+        let checksums = try await client(stub).database.checksums(id: "bogon_asn_v1", format: .csvgz)
 
         // Nested under `checksums`, not at the top level, and all four come back.
         #expect(checksums.md5 == "3d01a178473cc6e6f37275a2232db2e5")
@@ -252,7 +252,7 @@ struct ClientTests {
             ])
         ])
 
-        let metadata = try await client(stub).metadata(id: "bogon_ip_v1")
+        let metadata = try await client(stub).database.metadata(id: "bogon_ip_v1")
 
         #expect(metadata.id == "bogon_ip_v1")
         #expect(metadata.updateFreq == "daily")
@@ -284,7 +284,7 @@ struct ClientTests {
             ])
         ])
 
-        let metadata = try await client(stub).metadata(id: "resproxy_ip_90d_v1")
+        let metadata = try await client(stub).database.metadata(id: "resproxy_ip_90d_v1")
 
         #expect(metadata.size["csvgz"] == huge)
         #expect(metadata.entries == 4_000_000_000)
@@ -316,7 +316,7 @@ struct DownloadRedirectTests {
         let client = InternetDataClient(
             options: .init(apiKey: "key", baseURL: URL(string: "http://127.0.0.1:\(api.port)")!),
         )
-        let url = try await client.downloadURL(id: "bogon_ip_v1", format: .mmdb)
+        let url = try await client.database.downloadURL(id: "bogon_ip_v1", format: .mmdb)
 
         // The link carries its own signature, so it is safe to hand to something
         // holding no API key.
@@ -354,7 +354,7 @@ struct DownloadRedirectTests {
 
         let started = ContinuousClock.now
         let failure = await #expect(throws: InternetDataError.self) {
-            try await client.downloadURL(id: "bogon_ip_v1", format: .mmdb)
+            try await client.database.downloadURL(id: "bogon_ip_v1", format: .mmdb)
         }
         let elapsed = ContinuousClock.now - started
 
@@ -383,7 +383,7 @@ struct DownloadTransferTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let destination = directory.appendingPathComponent("bogon_ip_v1.csv.gz")
 
-        let written = try await origins.client.download(
+        let written = try await origins.client.database.download(
             "bogon_ip_v1", format: .csvgz, to: destination,
         )
 
@@ -407,7 +407,7 @@ struct DownloadTransferTests {
         let origins = try await Origins.start(.file(Self.payload))
         defer { origins.stop() }
 
-        let bytes = try await origins.client.downloadBytes("bogon_ip_v1", format: .csvgz)
+        let bytes = try await origins.client.database.downloadBytes("bogon_ip_v1", format: .csvgz)
 
         #expect([UInt8](bytes) == Self.payload)
         #expect(origins.storage.receivedAuthorizations == [nil])
@@ -425,7 +425,7 @@ struct DownloadTransferTests {
         let destination = directory.appendingPathComponent("bogon_ip_v1.csv.gz")
 
         await #expect(throws: (any Error).self) {
-            try await origins.client.download("bogon_ip_v1", format: .csvgz, to: destination)
+            try await origins.client.database.download("bogon_ip_v1", format: .csvgz, to: destination)
         }
 
         let manager = FileManager.default
@@ -444,7 +444,7 @@ struct DownloadTransferTests {
 
         let started = ContinuousClock.now
         await #expect(throws: SinkStopped.self) {
-            try await origins.client.download("bogon_ip_v1", format: .csvgz) { chunk in
+            try await origins.client.database.download("bogon_ip_v1", format: .csvgz) { chunk in
                 #expect(chunk.isEmpty == false)
                 throw SinkStopped()
             }

@@ -26,7 +26,7 @@ struct LiveTests {
 
     @Test("the catalog decodes, licence dates and all")
     func catalogDecodes() async throws {
-        let databases = try await Self.client.list()
+        let databases = try await Self.client.database.list()
 
         #expect(databases.isEmpty == false, "the catalog is empty")
         for database in databases {
@@ -51,25 +51,25 @@ struct LiveTests {
     @Test("metadata and checksums answer for a licensed database")
     func metadataAndChecksums() async throws {
         let client = Self.client
-        let licensed = try await client.list().filter { $0.standing == .licensed }
+        let licensed = try await client.database.list().filter { $0.standing == .licensed }
         let version = try #require(
             licensed.first?.versions.last, "this key licenses nothing to read",
         )
         let format = try #require(version.formats.first)
 
-        let metadata = try await client.metadata(id: version.id)
+        let metadata = try await client.database.metadata(id: version.id)
         #expect(metadata.id == version.id)
         #expect(metadata.entries > 0)
         #expect(try #require(metadata.size[format.rawValue]) > 0)
         #expect(metadata.updated.count == 10, "updated is a YYYY-MM-DD calendar date")
 
-        let checksums = try await client.checksums(id: version.id, format: format)
+        let checksums = try await client.database.checksums(id: version.id, format: format)
         #expect(checksums.sha256.count == 64, "checksums must unwrap past the envelope")
     }
 
     @Test("a download attempt history decodes")
     func downloadsDecode() async throws {
-        let attempts = try await Self.client.downloads(limit: 5)
+        let attempts = try await Self.client.database.downloads(limit: 5)
 
         for attempt in attempts {
             #expect(attempt.datasetId.isEmpty == false)

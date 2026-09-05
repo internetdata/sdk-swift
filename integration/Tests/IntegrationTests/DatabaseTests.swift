@@ -23,7 +23,7 @@ struct DatabaseTests {
     @Test("the catalog answers the family shape, and the key reached the wire", Credential.needsKey)
     func catalogAnswersTheFamilyShape() async throws {
         let transport = RecordingTransport()
-        let databases = try await stagingClient(transport: transport).list()
+        let databases = try await stagingClient(transport: transport).database.list()
 
         #expect(databases.isEmpty == false, "the catalog is empty")
         for database in databases {
@@ -64,7 +64,7 @@ struct DatabaseTests {
     func anUnlicensedDatabaseIsRefused() async throws {
         let transport = RecordingTransport()
         let client = stagingClient(transport: transport)
-        let catalog = try await client.list()
+        let catalog = try await client.database.list()
         let unlicensed = try #require(
             catalog.first(where: { $0.standing != .licensed })?.versions.first,
             "this organization licenses the whole catalog, so nothing can be refused",
@@ -73,7 +73,7 @@ struct DatabaseTests {
         let before = await transport.facts.count
 
         let failure = await #expect(throws: InternetDataError.self) {
-            try await client.downloadURL(id: unlicensed.id, format: format)
+            try await client.database.downloadURL(id: unlicensed.id, format: format)
         }
 
         let error = try #require(failure)
@@ -123,7 +123,7 @@ struct DatabaseTests {
     func downloadBytesAgreesWithTheFile() async throws {
         let transfer = try await Transfers.shared.transfer()
 
-        let bytes = try await transfer.client.downloadBytes(transfer.id, format: transfer.format)
+        let bytes = try await transfer.client.database.downloadBytes(transfer.id, format: transfer.format)
 
         #expect(Int64(bytes.count) == transfer.written, "the in-memory copy is a different length")
         #expect(sha256(bytes) == transfer.checksums.sha256, "the in-memory copy is not the file")
@@ -136,7 +136,7 @@ struct DatabaseTests {
     func downloadURLIsCredentialFree() async throws {
         let transfer = try await Transfers.shared.transfer()
 
-        let url = try await transfer.client.downloadURL(id: transfer.id, format: transfer.format)
+        let url = try await transfer.client.database.downloadURL(id: transfer.id, format: transfer.format)
 
         #expect(
             url.absoluteString.hasPrefix(staging.absoluteString) == false,
@@ -153,7 +153,7 @@ struct DatabaseTests {
     func downloadsListTheAttempt() async throws {
         let transfer = try await Transfers.shared.transfer()
 
-        let attempts = try await transfer.client.downloads(limit: 50)
+        let attempts = try await transfer.client.database.downloads(limit: 50)
 
         #expect(attempts.isEmpty == false, "a transfer just ran, so the history cannot be empty")
         let mine = attempts.filter { $0.datasetId == transfer.id }
@@ -216,10 +216,10 @@ private func downloadOnce() async throws -> Transfer {
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let file = directory.appendingPathComponent("\(id).\(format.rawValue)")
 
-    let written = try await client.download(id, format: format, to: file)
+    let written = try await client.database.download(id, format: format, to: file)
     // Read after the transfer, so a rebuild between the two calls shows up as a
     // digest mismatch rather than passing against a digest of nothing.
-    let checksums = try await client.checksums(id: id, format: format)
+    let checksums = try await client.database.checksums(id: id, format: format)
     print("\(id).\(format.rawValue): \(written) bytes, metadata says \(published)")
 
     return Transfer(
@@ -244,13 +244,13 @@ private func downloadOnce() async throws -> Transfer {
 private func smallestLicensedFile(
     _ client: InternetDataClient,
 ) async throws -> (id: String, format: DatabaseFormat, bytes: Int64) {
-    let licensed = try await client.list().filter { $0.standing == .licensed }
+    let licensed = try await client.database.list().filter { $0.standing == .licensed }
     try #require(licensed.isEmpty == false, "this organization licenses nothing to download")
 
     var candidates: [(id: String, format: DatabaseFormat, bytes: Int64)] = []
     for database in licensed {
         for version in database.versions {
-            let metadata = try await client.metadata(id: version.id)
+            let metadata = try await client.database.metadata(id: version.id)
             #expect(metadata.id == version.id)
             #expect(metadata.entries > 0, "\(version.id) publishes no rows")
             for format in version.formats {

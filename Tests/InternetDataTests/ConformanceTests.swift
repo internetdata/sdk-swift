@@ -31,7 +31,7 @@ struct ConformanceTests {
             let client = testClient(stub, retries: 0)
 
             let failure = await #expect(throws: InternetDataError.self) {
-                try await client.metadata(id: "bogon_ip_v1")
+                try await client.database.metadata(id: "bogon_ip_v1")
             }
             guard let error = failure else {
                 Issue.record("\(testCase.name): no InternetDataError was thrown")
@@ -66,7 +66,7 @@ struct ConformanceTests {
             let stub = StubTransport([StubTransport.metadataPath: route])
 
             await #expect(throws: InternetDataError.self) {
-                try await testClient(stub, retries: 1).metadata(id: "bogon_ip_v1")
+                try await testClient(stub, retries: 1).database.metadata(id: "bogon_ip_v1")
             }
             await #expect(stub.callCount == 2, "\(testCase.name): one attempt plus one retry")
         }
@@ -120,7 +120,7 @@ struct ConformanceTests {
             ])
         ])
 
-        let databases = try await testClient(stub).list()
+        let databases = try await testClient(stub).database.list()
 
         #expect(databases.map(\.base) == served, "the listing was reordered, padded or dropped")
     }
@@ -131,7 +131,7 @@ struct ConformanceTests {
     func noCatalogIsCompiledIntoTheClient() async throws {
         let stub = StubTransport([StubTransport.listPath: .json(["databases": []])])
 
-        let databases = try await testClient(stub).list()
+        let databases = try await testClient(stub).database.list()
 
         #expect(databases.isEmpty, "the client invented a catalog the server did not serve")
     }
@@ -145,9 +145,9 @@ struct ConformanceTests {
         ])
 
         let first = testClient(stub, apiKey: "key-a")
-        _ = try await first.list()
-        _ = try await first.list()
-        _ = try await testClient(stub, apiKey: "key-b").list()
+        _ = try await first.database.list()
+        _ = try await first.database.list()
+        _ = try await testClient(stub, apiKey: "key-b").database.list()
 
         await #expect(stub.callCount == 3, "a listing was served from a cache")
         await #expect(stub.authorizations == ["Bearer key-a", "Bearer key-a", "Bearer key-b"])
