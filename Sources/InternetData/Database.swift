@@ -282,7 +282,7 @@ public struct Database: Sendable, Hashable {
     public let standing: Standing
     /// What your licence permits you to do with the data, or `nil` when there is
     /// no licence.
-    public let license_type: LicenseType?
+    public let licenseType: LicenseType?
     public let starts: Date?
     /// `nil` when the licence has no end date, or when there is none.
     public let expires: Date?
@@ -390,7 +390,7 @@ extension Database {
         self.name = wire.name
         self.summary = wire.summary
         self.standing = Standing(wire.standing)
-        self.license_type = wire.license_type.flatMap(LicenseType.init)
+        self.licenseType = wire.licenseType.flatMap(LicenseType.init)
         self.starts = wire.starts
         self.expires = wire.expires
         self.versions = wire.versions.map(DatabaseVersion.init)
