@@ -286,6 +286,13 @@ public struct Database: Sendable, Hashable {
     public let starts: Date?
     /// `nil` when the licence has no end date, or when there is none.
     public let expires: Date?
+    /// When a rolling licence next renews. `nil` when the licence has no defined
+    /// term, when ``expires`` sets a hard stop instead, and when there is none.
+    public let renewsAt: Date?
+    /// The last day notice of non-renewal can be given for the term ending at
+    /// ``renewsAt``. `nil` whenever that is, and when the agreement records no
+    /// notice period.
+    public let noticeDueAt: Date?
     /// Every published version of this family, oldest first. Old versions are
     /// frozen rather than migrated, so both stay downloadable.
     public let versions: [DatabaseVersion]
@@ -393,6 +400,8 @@ extension Database {
         self.licenseType = wire.licenseType.flatMap(LicenseType.init)
         self.starts = wire.starts
         self.expires = wire.expires
+        self.renewsAt = wire.renewsAt
+        self.noticeDueAt = wire.noticeDueAt
         self.versions = wire.versions.map(DatabaseVersion.init)
     }
 }
