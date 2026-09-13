@@ -409,7 +409,7 @@ extension Database {
 extension Database.Standing {
     // Exhaustive rather than `init(rawValue:)`, so a standing added to the spec
     // is a compile error here instead of silently becoming `unlicensed`.
-    init(_ wire: Components.Schemas.Database.StandingPayload) {
+    init(_ wire: Components.Schemas.Standing) {
         switch wire {
         case .licensed: self = .licensed
         case .expired: self = .expired
@@ -447,7 +447,7 @@ extension DatabaseVersion {
 }
 
 extension DatabaseFormat {
-    init(_ wire: Components.Schemas.DatabaseVersion.FormatsPayloadPayload) {
+    init(_ wire: Components.Schemas.DatabaseFormat) {
         switch wire {
         case .csvgz: self = .csvgz
         case .mmdb: self = .mmdb
