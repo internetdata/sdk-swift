@@ -22,11 +22,13 @@ public struct DatabaseAPI: Sendable {
     private let api: Client
     private let transport: any ClientTransport
     private let retries: Int
+    private let timeout: Duration
 
-    init(api: Client, transport: any ClientTransport, retries: Int) {
+    init(api: Client, transport: any ClientTransport, retries: Int, timeout: Duration) {
         self.api = api
         self.transport = transport
         self.retries = retries
+        self.timeout = timeout
     }
 
     /// Every database your organization may see, with its licence beside it.
@@ -39,11 +41,13 @@ public struct DatabaseAPI: Sendable {
     /// reconstruct a catalog from anywhere else.
     public func list() async throws -> [Database] {
         try await withRetry(retries) {
-            let output = try await api.listDatabases()
-            guard case .ok(let ok) = output else {
-                throw unexpected(output)
+            try await withDeadline(timeout) {
+                let output = try await api.listDatabases()
+                guard case .ok(let ok) = output else {
+                    throw unexpected(output)
+                }
+                return try ok.body.json.databases.map(Database.init)
             }
-            return try ok.body.json.databases.map(Database.init)
         }
     }
 
@@ -52,11 +56,13 @@ public struct DatabaseAPI: Sendable {
     /// Takes a versioned id from ``Database/versions``, e.g. `bogon_ip_v1`.
     public func metadata(id: String) async throws -> DatabaseMetadata {
         try await withRetry(retries) {
-            let output = try await api.databaseMetadataV2(query: .init(id: id))
-            guard case .ok(let ok) = output else {
-                throw unexpected(output)
+            try await withDeadline(timeout) {
+                let output = try await api.databaseMetadataV2(query: .init(id: id))
+                guard case .ok(let ok) = output else {
+                    throw unexpected(output)
+                }
+                return DatabaseMetadata(try ok.body.json)
             }
-            return DatabaseMetadata(try ok.body.json)
         }
     }
 
@@ -67,13 +73,15 @@ public struct DatabaseAPI: Sendable {
     /// than at the top level.
     public func checksums(id: String, format: DatabaseFormat) async throws -> DatabaseChecksums {
         try await withRetry(retries) {
-            let output = try await api.databaseChecksumV2(
-                query: .init(id: id, format: .init(format)),
-            )
-            guard case .ok(let ok) = output else {
-                throw unexpected(output)
+            try await withDeadline(timeout) {
+                let output = try await api.databaseChecksumV2(
+                    query: .init(id: id, format: .init(format)),
+                )
+                guard case .ok(let ok) = output else {
+                    throw unexpected(output)
+                }
+                return DatabaseChecksums(try ok.body.json.checksums)
             }
-            return DatabaseChecksums(try ok.body.json.checksums)
         }
     }
 
@@ -82,11 +90,13 @@ public struct DatabaseAPI: Sendable {
     /// - Parameter limit: How many to return. Clamped to 200 by the API.
     public func downloads(limit: Int? = nil) async throws -> [Download] {
         try await withRetry(retries) {
-            let output = try await api.listDownloads(query: .init(limit: limit))
-            guard case .ok(let ok) = output else {
-                throw unexpected(output)
+            try await withDeadline(timeout) {
+                let output = try await api.listDownloads(query: .init(limit: limit))
+                guard case .ok(let ok) = output else {
+                    throw unexpected(output)
+                }
+                return try ok.body.json.downloads.map(Download.init)
             }
-            return try ok.body.json.downloads.map(Download.init)
         }
     }
 
@@ -103,20 +113,22 @@ public struct DatabaseAPI: Sendable {
     /// because by then the transport is holding the database.
     public func downloadURL(id: String, format: DatabaseFormat) async throws -> URL {
         try await withRetry(retries) {
-            let output = try await api.downloadDatabaseV2(
-                query: .init(id: id, format: .init(format)),
-            )
-            guard case .found(let found) = output else {
-                throw unexpected(output)
-            }
-            guard let location = found.headers.location, let url = URL(string: location) else {
-                throw InternetDataError(
-                    kind: .serverError,
-                    message: "the download redirect carried no usable Location header",
-                    status: 302,
+            try await withDeadline(timeout) {
+                let output = try await api.downloadDatabaseV2(
+                    query: .init(id: id, format: .init(format)),
                 )
+                guard case .found(let found) = output else {
+                    throw unexpected(output)
+                }
+                guard let location = found.headers.location, let url = URL(string: location) else {
+                    throw InternetDataError(
+                        kind: .serverError,
+                        message: "the download redirect carried no usable Location header",
+                        status: 302,
+                    )
+                }
+                return url
             }
-            return url
         }
     }
 
@@ -203,39 +215,38 @@ public struct DatabaseAPI: Sendable {
     // authorizes itself, so forwarding the credential would hand it to a host
     // that has no business holding it.
     //
-    // The body is returned unread. AsyncHTTPClient's deadline covers only the
-    // time to the response HEAD - `executeCancellable` cancels the deadline task
-    // the moment the continuation resumes - so the transport's 60 second default
-    // is not a ceiling on a multi-gigabyte transfer, and reusing the injected
-    // transport here is safe.
+    // The body is returned unread, so the attempt's deadline ends at the response
+    // head and a multi-gigabyte transfer is never racing it.
     private func databaseFile(_ id: String, _ format: DatabaseFormat) async throws -> HTTPBody {
         let url = try await downloadURL(id: id, format: format)
         let (origin, path) = try split(url)
         return try await withRetry(retries) {
-            let (response, body) = try await transport.send(
-                HTTPRequest(method: .get, scheme: nil, authority: nil, path: path),
-                body: nil,
-                baseURL: origin,
-                operationID: "downloadDatabaseFile",
-            )
-            let status = Int(response.status.code)
-            guard (200..<300).contains(status) else {
-                // Left unread: the status is what separates a lapsed link from a
-                // refused one, and nothing bounds the size of an error body.
-                throw InternetDataError.from(
-                    status: status,
-                    headers: response.headerFields,
-                    body: [],
-                    fallback: "object storage refused the download link with status \(status)",
+            try await withDeadline(timeout) {
+                let (response, body) = try await transport.send(
+                    HTTPRequest(method: .get, scheme: nil, authority: nil, path: path),
+                    body: nil,
+                    baseURL: origin,
+                    operationID: "downloadDatabaseFile",
                 )
+                let status = Int(response.status.code)
+                guard (200..<300).contains(status) else {
+                    // Left unread: the status is what separates a lapsed link from a
+                    // refused one, and nothing bounds the size of an error body.
+                    throw InternetDataError.from(
+                        status: status,
+                        headers: response.headerFields,
+                        body: [],
+                        fallback: "object storage refused the download link with status \(status)",
+                    )
+                }
+                guard let body else {
+                    throw InternetDataError(
+                        kind: .serverError, message: "object storage answered with no body",
+                        status: status,
+                    )
+                }
+                return body
             }
-            guard let body else {
-                throw InternetDataError(
-                    kind: .serverError, message: "object storage answered with no body",
-                    status: status,
-                )
-            }
-            return body
         }
     }
 }

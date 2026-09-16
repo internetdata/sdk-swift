@@ -13,7 +13,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/internetdata/sdk-swift.git", from: "2.0.0"),
+    .package(url: "https://github.com/internetdata/sdk-swift.git", from: "2.1.0"),
 ]
 ```
 
@@ -52,6 +52,8 @@ Every setting has a default, and `InternetDataClient.Options` is where you chang
 ```swift
 let client = InternetDataClient(options: .init(apiKey: key, retries: 4))
 ```
+
+Each attempt is abandoned after 30 seconds by default (`timeout` on the options), which fails as a retryable `network` error. A download is timed only until object storage starts answering, so a large file is never cut off.
 
 ### What is inside a database
 

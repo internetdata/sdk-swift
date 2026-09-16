@@ -20,6 +20,15 @@ final class TestOrigin: Sendable {
         var complete: Bool = true
         /// Drop the connection after the body, so a promised length never arrives.
         var closeAfterBody: Bool = false
+        /// Take the request and never answer it at all, not even with a head.
+        var silent: Bool = false
+        /// Drop the connection this long after the request, so a stall outlasts any
+        /// bound under test but a client with no bound fails an assertion rather
+        /// than hanging the suite.
+        var closeAfter: TimeAmount?
+        /// Write the body one byte at a time, this far apart, so no single read
+        /// ever waits long while the whole body takes as long as it likes.
+        var trickle: TimeAmount?
     }
 
     let port: Int
@@ -113,12 +122,25 @@ final class TestOrigin: Sendable {
             log.record(path, authorization: authorization)
 
             let answer = answer(path)
+            if let after = answer.closeAfter {
+                context.eventLoop.assumeIsolated().scheduleTask(in: after) {
+                    context.close(promise: nil)
+                }
+            }
+            guard !answer.silent else {
+                return
+            }
             var headers = HTTPHeaders()
             for (name, value) in answer.headers {
                 headers.add(name: name, value: value)
             }
             let head = HTTPResponseHead(version: .http1_1, status: answer.status, headers: headers)
             context.write(wrapOutboundOut(.head(head)), promise: nil)
+            if let every = answer.trickle {
+                context.flush()
+                trickle(answer.body[...], every: every, complete: answer.complete, context: context)
+                return
+            }
             if !answer.body.isEmpty {
                 var buffer = context.channel.allocator.buffer(capacity: answer.body.count)
                 buffer.writeBytes(answer.body)
@@ -130,6 +152,23 @@ final class TestOrigin: Sendable {
             context.flush()
             if answer.closeAfterBody {
                 context.close(promise: nil)
+            }
+        }
+
+        private func trickle(
+            _ rest: ArraySlice<UInt8>, every: TimeAmount, complete: Bool, context: ChannelHandlerContext,
+        ) {
+            context.eventLoop.assumeIsolated().scheduleTask(in: every) {
+                guard let byte = rest.first else {
+                    if complete {
+                        context.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
+                    }
+                    return
+                }
+                var buffer = context.channel.allocator.buffer(capacity: 1)
+                buffer.writeInteger(byte)
+                context.writeAndFlush(self.wrapOutboundOut(.body(.byteBuffer(buffer))), promise: nil)
+                self.trickle(rest.dropFirst(), every: every, complete: complete, context: context)
             }
         }
     }
@@ -162,6 +201,47 @@ extension TestOrigin.Answer {
             body: Array(repeating: 0x41, count: written),
             complete: false,
             closeAfterBody: true,
+        )
+    }
+
+    /// Takes the request and answers nothing for eight seconds, then hangs up.
+    static var silence: Self {
+        .init(silent: true, closeAfter: .seconds(8))
+    }
+
+    /// A JSON answer whose head arrives and whose body stops part way, until the
+    /// connection drops eight seconds later.
+    static var stalledJSON: Self {
+        .init(
+            status: .ok,
+            headers: [("Content-Type", "application/json"), ("Content-Length", "64")],
+            body: Array(#"{"databases":"#.utf8),
+            complete: false,
+            closeAfter: .seconds(8),
+        )
+    }
+
+    /// A whole empty listing, one byte every 20 ms: about a second in all, and
+    /// never more than 20 ms between two bytes.
+    static var trickledListing: Self {
+        let body = Array((#"{"databases":[]"# + String(repeating: " ", count: 34) + "}").utf8)
+        return .init(
+            status: .ok,
+            headers: [("Content-Type", "application/json"), ("Content-Length", "\(body.count)")],
+            body: body,
+            trickle: .milliseconds(20),
+        )
+    }
+
+    /// A small database, one byte every 20 ms.
+    static func trickled(_ bytes: [UInt8]) -> Self {
+        .init(
+            status: .ok,
+            headers: [
+                ("Content-Type", "application/octet-stream"), ("Content-Length", "\(bytes.count)"),
+            ],
+            body: bytes,
+            trickle: .milliseconds(20),
         )
     }
 

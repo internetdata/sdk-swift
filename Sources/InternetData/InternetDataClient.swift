@@ -20,6 +20,7 @@ public struct InternetDataClient: Sendable {
 
     public init(options: Options = Options()) {
         precondition(options.retries >= 0, "retries cannot be negative")
+        precondition(options.timeout > .zero, "timeout must be positive")
 
         // Attached only when there is a key, so a keyless client sends no
         // `Authorization` header rather than `Bearer ` with nothing behind it -
@@ -41,7 +42,9 @@ public struct InternetDataClient: Sendable {
             transport: transport,
             middlewares: middlewares,
         )
-        self.database = DatabaseAPI(api: api, transport: transport, retries: options.retries)
+        self.database = DatabaseAPI(
+            api: api, transport: transport, retries: options.retries, timeout: options.timeout,
+        )
     }
 
     /// A client that presents `apiKey` against production and takes every other
@@ -62,6 +65,11 @@ extension InternetDataClient {
         public var baseURL: URL
         /// Retry attempts for a transient failure. Default 2.
         public var retries: Int
+        /// How long one attempt may take, from sending the request to decoding
+        /// the answer. Default 30 seconds. Per ATTEMPT, so a retried call may
+        /// take longer in total. A database transfer is bounded only until its
+        /// response head arrives, so a download that takes minutes is not cut off.
+        public var timeout: Duration
         /// Override the HTTP implementation. Anything you supply owns its own
         /// redirect policy, and the download endpoint's `302` must not be
         /// followed; see ``DatabaseAPI/downloadURL(id:format:)``.
@@ -71,11 +79,13 @@ extension InternetDataClient {
             apiKey: String? = nil,
             baseURL: URL = InternetDataClient.defaultBaseURL,
             retries: Int = 2,
+            timeout: Duration = .seconds(30),
             transport: (any ClientTransport)? = nil,
         ) {
             self.apiKey = apiKey
             self.baseURL = baseURL
             self.retries = retries
+            self.timeout = timeout
             self.transport = transport
         }
     }

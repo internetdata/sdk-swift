@@ -18,9 +18,14 @@ import OpenAPIRuntime
 /// follows the redirect reads a database that routinely runs to gigabytes into
 /// memory. `.disallow` is one value rather than a delegate to get right, and it
 /// behaves identically on Linux and on Apple platforms.
+///
+/// Its own deadline is pushed out of the way. It stops at the response head, and
+/// at its default of a minute it would cut short a client whose own
+/// ``InternetDataClient/Options/timeout`` is longer; the library's per-attempt
+/// bound is the one that fires.
 enum DefaultTransport {
     static let shared: any ClientTransport = AsyncHTTPClientTransport(
-        configuration: .init(client: httpClient),
+        configuration: .init(client: httpClient, timeout: .hours(24 * 365)),
     )
 
     private static let httpClient = HTTPClient(
@@ -153,4 +158,79 @@ func withRetry<T>(_ retries: Int, _ operation: () async throws -> T) async throw
 
 private func backoff(_ attempt: Int) -> Duration {
     .milliseconds(min(5_000, 200 << min(attempt, 5)))
+}
+
+/// Bounds one attempt with a deadline the library owns.
+///
+/// Raced rather than left to cancellation: cancelling the attempt releases its
+/// connection, but only a transport that HONORS cancellation then returns, and
+/// one supplied through ``InternetDataClient/Options/transport`` need not. So
+/// the caller is answered at the deadline, and the attempt is cancelled and
+/// left to finish on its own.
+func withDeadline<T: Sendable>(
+    _ timeout: Duration, _ operation: @escaping @Sendable () async throws -> T,
+) async throws -> T {
+    precondition(timeout > .zero, "timeout must be positive")
+    let race = Race<T>()
+    let attempt = Task {
+        do {
+            race.settle(.success(try await operation()))
+        } catch {
+            race.settle(.failure(error))
+        }
+    }
+    let timer = Task {
+        try await Task.sleep(for: timeout)
+        race.settle(.failure(InternetDataError(
+            kind: .network, message: "the request timed out after \(timeout)",
+        )))
+    }
+    defer {
+        attempt.cancel()
+        timer.cancel()
+    }
+    return try await withTaskCancellationHandler {
+        try await race.value
+    } onCancel: {
+        race.settle(.failure(CancellationError()))
+    }
+}
+
+/// An outcome decided once, by whichever side of a race gets there first.
+///
+/// A lock rather than an actor, because the cancellation handler that settles
+/// it is synchronous and cannot wait for one.
+private final class Race<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var outcome: Result<T, any Error>?
+    private var waiter: CheckedContinuation<T, any Error>?
+
+    var value: T {
+        get async throws {
+            try await withCheckedThrowingContinuation { continuation in
+                let decided: Result<T, any Error>? = lock.withLock {
+                    if outcome == nil {
+                        waiter = continuation
+                    }
+                    return outcome
+                }
+                if let decided {
+                    continuation.resume(with: decided)
+                }
+            }
+        }
+    }
+
+    func settle(_ result: Result<T, any Error>) {
+        let waiting: CheckedContinuation<T, any Error>? = lock.withLock {
+            guard outcome == nil else {
+                return nil
+            }
+            outcome = result
+            let waiting = waiter
+            waiter = nil
+            return waiting
+        }
+        waiting?.resume(with: result)
+    }
 }

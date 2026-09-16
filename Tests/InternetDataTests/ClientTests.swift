@@ -484,7 +484,9 @@ struct DownloadTransferTests {
         let storage: TestOrigin
         let client: InternetDataClient
 
-        static func start(_ answer: TestOrigin.Answer) async throws -> Origins {
+        static func start(
+            _ answer: TestOrigin.Answer, timeout: Duration = .seconds(30),
+        ) async throws -> Origins {
             let storage = try await TestOrigin.start { _ in answer }
             let location = "http://127.0.0.1:\(storage.port)/bogon_ip_v1.csv.gz?signature=abc"
             let api = try await TestOrigin.start { _ in .redirect(to: location) }
@@ -496,6 +498,7 @@ struct DownloadTransferTests {
                         apiKey: "key",
                         baseURL: URL(string: "http://127.0.0.1:\(api.port)")!,
                         retries: 0,
+                        timeout: timeout,
                     ),
                 ),
             )
