@@ -28,8 +28,8 @@ cd "$(dirname "$0")/.."
 PACKAGE_URL="https://github.com/internetdata/sdk-swift.git"
 # Mirrors the range in Package.swift. Both are read by hand rather than parsed:
 # a manifest is Swift, and the gate has to run before anything is built.
-RANGE_LOW="1.0.0"
-RANGE_HIGH="2.0.0"
+RANGE_LOW="2.0.0"
+RANGE_HIGH="3.0.0"
 SECRET="INTERNETDATA_STAGING_KEY"
 
 IMAGE="${SWIFT_IMAGE:-swift:6.3}"
@@ -48,6 +48,7 @@ function main() {
             return 0
         fi
         echo "==> ${PACKAGE_URL} publishes ${versions//$'\n'/, } within [${RANGE_LOW}, ${RANGE_HIGH})"
+        assert_range_admits_latest "$versions"
     fi
 
     report_credential
@@ -87,6 +88,23 @@ function in_range() {
     lowest="$(printf '%s\n%s\n' "$tag" "$RANGE_LOW" | sort -V | head -1)"
     highest="$(printf '%s\n%s\n' "$tag" "$RANGE_HIGH" | sort -V | head -1)"
     [ "$lowest" = "$RANGE_LOW" ] && [ "$highest" = "$tag" ] && [ "$tag" != "$RANGE_HIGH" ]
+}
+
+# The range has to admit the NEWEST tag, not merely some tag. A stale range still
+# matches the last release inside it, so the skip above never fires and the
+# suite exercises a client from a major behind: this one sat on [1.0.0, 2.0.0)
+# testing 1.4.0 while 2.0.0 was out. An EMPTY match is the skip; this is the
+# failure.
+function assert_range_admits_latest() {
+    local versions="$1" latest
+    latest="$(git ls-remote --tags --refs "$PACKAGE_URL" 2>/dev/null \
+        | sed -n 's#.*refs/tags/v\{0,1\}\([0-9]\+\.[0-9]\+\.[0-9]\+\)$#\1#p' | sort -V | tail -1)"
+    if ! printf '%s\n' "$versions" | grep -qx "$latest" ; then
+        echo "FAILED: [${RANGE_LOW}, ${RANGE_HIGH}) does not admit the newest published ${latest}," \
+            "so the suite would test $(printf '%s\n' "$versions" | sort -V | tail -1) instead." \
+            "Bump RANGE_LOW/RANGE_HIGH here and the range in Package.swift." >&2
+        exit 1
+    fi
 }
 
 # The suite is worthless if SwiftPM built a local checkout instead, and that

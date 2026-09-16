@@ -21,7 +21,7 @@ let sdk: Package.Dependency =
     if let local = ProcessInfo.processInfo.environment["INTERNETDATA_SDK_LOCAL_PATH"] {
         .package(path: local)
     } else {
-        .package(url: "https://github.com/internetdata/sdk-swift.git", "1.0.0"..<"2.0.0")
+        .package(url: "https://github.com/internetdata/sdk-swift.git", "2.0.0"..<"3.0.0")
     }
 
 let package = Package(
