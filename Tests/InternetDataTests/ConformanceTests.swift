@@ -137,7 +137,7 @@ struct ConformanceTests {
     }
 
     /// a-listing-is-never-reused-across-clients. Two keys can hold different
-    /// licences, so a catalog cached against one is not a catalog for another.
+    /// licenses, so a catalog cached against one is not a catalog for another.
     @Test("a listing is never cached, within a client or across two")
     func listingIsNeverReusedAcrossClients() async throws {
         let stub = StubTransport([

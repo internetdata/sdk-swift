@@ -37,7 +37,7 @@ enum DefaultTransport {
 /// Reads an RFC 3339 timestamp whether or not it carries fractional seconds.
 ///
 /// The runtime ships two transcoders and each rejects what the other accepts:
-/// `.iso8601` refuses `2026-09-04T18:04:26.431Z`, which is what a licence term
+/// `.iso8601` refuses `2026-09-04T18:04:26.431Z`, which is what a license term
 /// and a download's `created` are served as, and `.iso8601WithFractionalSeconds`
 /// refuses `2026-09-04T18:04:26Z`, which is what a service with a different JSON
 /// encoder behind the same host would send. Both are valid RFC 3339, so both are

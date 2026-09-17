@@ -107,7 +107,7 @@ struct ClientTests {
         await #expect(throws: CancellationError.self) { try await call.value }
     }
 
-    // The licence is held against the FAMILY, and the ids a download takes hang
+    // The license is held against the FAMILY, and the ids a download takes hang
     // off `versions`. A listing that stopped at the family would leave a caller
     // with nothing to pass to `download`.
     @Test("the catalog carries each family's versions, standing and licence term")
@@ -154,13 +154,13 @@ struct ClientTests {
         #expect(databases[0].standing == .licensed)
         #expect(databases[0].licenseType == .standard)
         #expect(databases[0].starts != nil)
-        #expect(databases[0].expires == nil, "a licence with no end date has no expiry")
+        #expect(databases[0].expires == nil, "a license with no end date has no expiry")
         let version = try #require(databases[0].versions.first)
         #expect(version.id == "bogon_ip_v1")
         #expect(version.version == 1)
         #expect(version.formats == [.csvgz, .mmdb])
 
-        // No licence is a null on the wire, not an "unlicensed" license_type.
+        // No license is a null on the wire, not an "unlicensed" license_type.
         #expect(databases[1].standing == .unlicensed)
         #expect(databases[1].licenseType == nil)
         #expect(databases[1].starts == nil)

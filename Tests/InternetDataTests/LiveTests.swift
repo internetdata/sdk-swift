@@ -43,7 +43,7 @@ struct LiveTests {
             // The one thing no fixture can prove: these arrive as
             // `2026-09-04T18:04:26.431Z`, which the runtime's stock `.iso8601`
             // transcoder rejects outright.
-            #expect(database.starts != nil, "\(database.base) lost its licence start date")
+            #expect(database.starts != nil, "\(database.base) lost its license start date")
             #expect(database.licenseType != nil, "\(database.base) is licensed for nothing")
         }
     }

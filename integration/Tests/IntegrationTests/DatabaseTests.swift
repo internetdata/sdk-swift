@@ -6,12 +6,12 @@ import Testing
 /// The whole API, against staging, through the package a consumer resolves.
 ///
 /// Every id is DISCOVERED from `list` rather than written down here. That keeps
-/// the suite honest when the CI organization's licences change, and it keeps the
+/// the suite honest when the CI organization's licenses change, and it keeps the
 /// names of anything private out of a public repository.
 ///
 /// The transfer is budgeted before it starts: `metadata` publishes a size per
 /// format, and the smallest licensed file is checked against the ceiling below
-/// FIRST, so a licence change can never quietly pull gigabytes through CI.
+/// FIRST, so a license change can never quietly pull gigabytes through CI.
 @Suite("Staging database")
 struct DatabaseTests {
     /// 8 MiB. The licensed files are measured in hundreds of bytes, so three
@@ -29,7 +29,7 @@ struct DatabaseTests {
         for database in databases {
             #expect(database.base.isEmpty == false)
             #expect(database.name.isEmpty == false)
-            // A licence covers the FAMILY, and these are the ids the download,
+            // A license covers the FAMILY, and these are the ids the download,
             // checksum and metadata methods take. A listing that stopped at the
             // family would leave a caller with nothing to pass to `download`.
             #expect(database.versions.isEmpty == false, "\(database.base) carries no versions")
@@ -49,7 +49,7 @@ struct DatabaseTests {
             // `.iso8601` transcoder rejects fractional seconds outright, so this
             // is the assertion no fixture can make: the spec says only
             // `format: date-time`.
-            #expect(database.starts != nil, "\(database.base) lost its licence start date")
+            #expect(database.starts != nil, "\(database.base) lost its license start date")
             #expect(database.licenseType != nil, "\(database.base) is licensed for nothing")
         }
 
@@ -82,7 +82,7 @@ struct DatabaseTests {
         let error = try #require(failure)
         #expect(error.kind == .forbidden)
         #expect(error.status == 403)
-        #expect(error.isRetryable == false, "a licence refusal is not worth retrying")
+        #expect(error.isRetryable == false, "a license refusal is not worth retrying")
         // The API says which refusal this is, in `rc`. Falling back to the
         // status means the client never read the envelope.
         #expect(
@@ -240,7 +240,7 @@ private func downloadOnce() async throws -> Transfer {
 /// The smallest file this organization is licensed for, discovered rather than
 /// written down.
 ///
-/// The licences a CI organization holds are not this repository's business, and
+/// The licenses a CI organization holds are not this repository's business, and
 /// naming one here would both rot and publish it. Picking the smallest is what
 /// keeps the run cheap; the ceiling is what keeps it safe when the smallest is
 /// not small.

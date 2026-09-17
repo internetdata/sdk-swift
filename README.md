@@ -30,7 +30,7 @@ Requires Swift 6.1 or newer, and macOS 13, iOS 16, tvOS 16, watchOS 9 or visionO
 
 ## Usage
 
-Every database published today needs an API key carrying the `db.download` scope. Access is granted by contract, one family at a time, so there is no self-serve signup: [talk to us](https://internetdata.io) and we will issue one. `apiKey` is nevertheless optional - a client built without one sends no `Authorization` header at all, ready for a database served without a licence.
+Every database published today needs an API key carrying the `db.download` scope. Access is granted by contract, one family at a time, so there is no self-serve signup: [talk to us](https://internetdata.io) and we will issue one. `apiKey` is nevertheless optional - a client built without one sends no `Authorization` header at all, ready for a database served without a license.
 
 ```swift
 import InternetData
@@ -45,7 +45,7 @@ for database in try await client.database.list() {
 
 Every call lives under `client.database`. The downloads are the whole of this API today, but the sibling VPNDetection client spells the same seven calls the same way, so a codebase holding both does not have to remember which one is flat.
 
-A licence is held against a FAMILY (`vpn_ip`), while a download names a VERSION (`vpn_ip_v1`), so the ids everything below takes come from `versions`. Old versions are frozen rather than migrated, so both stay downloadable.
+A license is held against a FAMILY (`vpn_ip`), while a download names a VERSION (`vpn_ip_v1`), so the ids everything below takes come from `versions`. Old versions are frozen rather than migrated, so both stay downloadable.
 
 Every setting has a default, and `InternetDataClient.Options` is where you change one:
 

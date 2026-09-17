@@ -15,7 +15,7 @@ public typealias DownloadSink = (ArraySlice<UInt8>) async throws -> Void
 /// one spells the same call the same way in both.
 ///
 /// Nothing here is cached, deliberately. The catalog a key may see depends on
-/// the licences its organization holds, so an answer cached against one key is
+/// the licenses its organization holds, so an answer cached against one key is
 /// not an answer for another, and a listing is small and cheap next to the files
 /// it describes.
 public struct DatabaseAPI: Sendable {
@@ -31,7 +31,7 @@ public struct DatabaseAPI: Sendable {
         self.timeout = timeout
     }
 
-    /// Every database your organization may see, with its licence beside it.
+    /// Every database your organization may see, with its license beside it.
     ///
     /// The catalog is not the same for everyone. A database commissioned for a
     /// single customer is ABSENT from this list for every other organization
@@ -278,26 +278,26 @@ public enum DatabaseFormat: String, Sendable, Hashable, CaseIterable {
     case mmdb
 }
 
-/// One database FAMILY, with your organization's licence beside it.
+/// One database FAMILY, with your organization's license beside it.
 ///
-/// A licence is held against the family, while a download names a version, so
+/// A license is held against the family, while a download names a version, so
 /// the ids the download, checksum and metadata methods take come from
 /// ``versions`` rather than from ``base``.
 public struct Database: Sendable, Hashable {
-    /// The family, e.g. `vpn_ip`. What a licence is held against.
+    /// The family, e.g. `vpn_ip`. What a license is held against.
     public let base: String
     public let name: String
     /// One line on what the newest version contains.
     public let summary: String
     /// Where your organization stands on this family.
     public let standing: Standing
-    /// What your licence permits you to do with the data, or `nil` when there is
-    /// no licence.
+    /// What your license permits you to do with the data, or `nil` when there is
+    /// no license.
     public let licenseType: LicenseType?
     public let starts: Date?
-    /// `nil` when the licence has no end date, or when there is none.
+    /// `nil` when the license has no end date, or when there is none.
     public let expires: Date?
-    /// When a rolling licence next renews. `nil` when the licence has no defined
+    /// When a rolling license next renews. `nil` when the license has no defined
     /// term, when ``expires`` sets a hard stop instead, and when there is none.
     public let renewsAt: Date?
     /// The last day notice of non-renewal can be given for the term ending at
@@ -318,7 +318,7 @@ public struct Database: Sendable, Hashable {
         case unlicensed
     }
 
-    /// What a licence permits.
+    /// What a license permits.
     public enum LicenseType: String, Sendable, Hashable, CaseIterable {
         case evaluation
         case standard
@@ -432,11 +432,11 @@ extension Database.Standing {
 extension Database.LicenseType {
     /// `nil` for the generator's `_empty_` case.
     ///
-    /// The spec spells "no licence" as `nullable: true` PLUS a `null` member of
+    /// The spec spells "no license" as `nullable: true` PLUS a `null` member of
     /// the enum, and the generator turns that member into an empty-string case
     /// alongside the three real ones. A `null` on the wire decodes as the absent
     /// Optional rather than as that case, so `_empty_` should be unreachable;
-    /// mapping it to "no licence" rather than trapping keeps a surprise from
+    /// mapping it to "no license" rather than trapping keeps a surprise from
     /// becoming a crash in a caller's process.
     init?(_ wire: Components.Schemas.Database.LicenseTypePayload) {
         switch wire {
