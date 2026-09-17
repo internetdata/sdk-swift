@@ -153,13 +153,10 @@ function swift_run() {
         fi
         return 0
     fi
-    # One build volume per toolchain: a scratch path shared between two Swift
-    # versions fails the moment you switch images.
-    local slug
-    slug="$(echo "$IMAGE" | tr ':/.' '---')"
+    # The scratch path stays inside the container and goes with it, so a run
+    # leaves no build behind in the checkout or on disk.
     local args=(
         --rm -v "$PWD:/pkg" -w /pkg
-        -v "internetdata-swift-integration-${slug}:/build"
         -e "$SECRET"
     )
     if [ -n "$LOCAL_PATH" ] ; then
