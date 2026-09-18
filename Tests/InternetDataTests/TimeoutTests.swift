@@ -5,16 +5,20 @@ import Testing
 
 @testable import InternetData
 
-/// The client's timeout, bounding a whole ATTEMPT from the request to the decoded
-/// answer. Every stall is a real socket that took the request, and every failure
-/// is checked for having taken at least the timeout: a refused connection is a
-/// retryable network error too, and would otherwise pass for the deadline firing.
+/// The client's timeout and the per-call one, each bounding a whole ATTEMPT from
+/// the request to the decoded answer. Every stall is a real socket that took the
+/// request, and every failure is checked for having taken at least the timeout: a
+/// refused connection is a retryable network error too, and would otherwise pass
+/// for the deadline firing.
 @Suite("Timeout")
 struct TimeoutTests {
     static let timeout: Duration = .milliseconds(300)
     /// Timer slack, so a deadline that fired a hair early is not read as none.
     static let atLeast: Duration = .milliseconds(250)
 
+    /// The calls that ask the API a question. The transfers are absent because
+    /// they take no per-call timeout at all, which
+    /// ``onlyTheJSONCallsTakeATimeout()`` is what asserts.
     enum Call: String, CaseIterable, Sendable {
         case list, metadata, checksums, downloads, downloadURL
     }
@@ -75,6 +79,89 @@ struct TimeoutTests {
 
         #expect(origin.receivedPaths.count == 2)
         #expect(ContinuousClock.now - started >= Self.atLeast * 2)
+    }
+
+    // The client is given thirty seconds, so only the per-call value can end any
+    // of these. The head lands at once and the body then arrives a byte at a
+    // time, so no single read ever waits long enough to be what fired; the
+    // redirect has no body to trickle, so its origin never answers at all.
+    @Test(
+        "a per-call timeout below the client's bounds every call", .timeLimit(.minutes(1)),
+        arguments: Call.allCases,
+    )
+    func aPerCallTimeoutBoundsEveryCall(_ call: Call) async throws {
+        let origin = try await TestOrigin.start { _ in call == .downloadURL ? .silence : .trickledListing }
+        defer { Task { try? await origin.stop() } }
+        let client = Self.client(origin, timeout: .seconds(30))
+
+        let started = ContinuousClock.now
+        let failure = try await Self.failure(of: call, on: client, timeout: Self.timeout)
+        let elapsed = ContinuousClock.now - started
+
+        #expect(failure.kind == .network)
+        #expect(failure.isRetryable)
+        #expect(failure.message.hasPrefix("the request timed out"), "\(failure.message)")
+        #expect(elapsed >= Self.atLeast, "failed after \(elapsed), before the deadline could fire")
+        // Under the listing's own thousand milliseconds, so a per-call value that
+        // was accepted and ignored cannot pass by the body simply finishing.
+        #expect(elapsed < .milliseconds(900), "failed after \(elapsed), not at the per-call deadline")
+        #expect(origin.receivedPaths.count == 1)
+    }
+
+    // A per-call value kept anywhere but the call itself - written into the client,
+    // or into the API struct it is reached through - passes the first of these and
+    // fails the second.
+    @Test("a call with no timeout falls back to the client's", .timeLimit(.minutes(1)))
+    func aCallWithoutAnOverrideUsesTheClients() async throws {
+        let origin = try await TestOrigin.start { _ in .trickledListing }
+        defer { Task { try? await origin.stop() } }
+        let client = Self.client(origin)
+
+        let databases = try await client.database.list(timeout: .seconds(10))
+        let started = ContinuousClock.now
+        let failure = await #expect(throws: InternetDataError.self) {
+            try await client.database.downloads()
+        }
+        let elapsed = ContinuousClock.now - started
+
+        #expect(databases.isEmpty)
+        #expect(try #require(failure).kind == .network)
+        #expect(elapsed >= Self.atLeast, "failed after \(elapsed), before the client's deadline could fire")
+        #expect(elapsed < .milliseconds(900), "failed after \(elapsed), not at the client's timeout")
+    }
+
+    // A method reference names every parameter and never applies a default, so
+    // the annotations below ARE the signatures. A `timeout` added to a transfer,
+    // or dropped from a call that asks the API a question, stops this file
+    // compiling - which is how Swift refuses the option rather than accepting it
+    // and quietly doing nothing with it.
+    @Test("every JSON call takes a per-call timeout, and no transfer does")
+    func onlyTheJSONCallsTakeATimeout() async throws {
+        let stub = StubTransport([StubTransport.listPath: .json(["databases": []])])
+        let client = InternetDataClient(options: .init(apiKey: "key", transport: stub))
+
+        let list: (Duration?) async throws -> [Database] = client.database.list(timeout:)
+        let metadata: (String, Duration?) async throws -> DatabaseMetadata =
+            client.database.metadata(id:timeout:)
+        let checksums: (String, DatabaseFormat, Duration?) async throws -> DatabaseChecksums =
+            client.database.checksums(id:format:timeout:)
+        let downloads: (Int?, Duration?) async throws -> [Download] =
+            client.database.downloads(limit:timeout:)
+        let downloadURL: (String, DatabaseFormat, Duration?) async throws -> URL =
+            client.database.downloadURL(id:format:timeout:)
+
+        let toFile: (String, DatabaseFormat, URL) async throws -> Int64 =
+            client.database.download(_:format:to:)
+        let toSink: (String, DatabaseFormat, DownloadSink) async throws -> Int64 =
+            client.database.download(_:format:to:)
+        let toBytes: (String, DatabaseFormat) async throws -> Data =
+            client.database.downloadBytes(_:format:)
+
+        // One of them is called, so these are live code rather than a comment the
+        // compiler happens to check.
+        #expect(try await list(.seconds(5)).isEmpty)
+        #expect(await stub.callCount == 1)
+        _ = (metadata, checksums, downloads, downloadURL, toFile, toSink, toBytes)
     }
 
     // The attempt ends at the response head, or it would abandon any database that
@@ -144,7 +231,9 @@ struct TimeoutTests {
         #expect(ContinuousClock.now - started < .seconds(2), "the cancellation waited for the deadline")
     }
 
-    static func client(_ origin: TestOrigin, retries: Int = 0) -> InternetDataClient {
+    static func client(
+        _ origin: TestOrigin, retries: Int = 0, timeout: Duration = Self.timeout,
+    ) -> InternetDataClient {
         InternetDataClient(
             options: .init(
                 apiKey: "key", baseURL: URL(string: "http://127.0.0.1:\(origin.port)")!, retries: retries,
@@ -153,19 +242,27 @@ struct TimeoutTests {
         )
     }
 
-    static func failure(of call: Call, on client: InternetDataClient) async throws -> InternetDataError {
+    /// `timeout` nil is the call taking the client's, which is what every case
+    /// but the per-call one is about.
+    static func failure(
+        of call: Call, on client: InternetDataClient, timeout: Duration? = nil,
+    ) async throws -> InternetDataError {
         let caught = await #expect(throws: InternetDataError.self) {
             switch call {
             case .list:
-                _ = try await client.database.list()
+                _ = try await client.database.list(timeout: timeout)
             case .metadata:
-                _ = try await client.database.metadata(id: "bogon_ip_v1")
+                _ = try await client.database.metadata(id: "bogon_ip_v1", timeout: timeout)
             case .checksums:
-                _ = try await client.database.checksums(id: "bogon_ip_v1", format: .csvgz)
+                _ = try await client.database.checksums(
+                    id: "bogon_ip_v1", format: .csvgz, timeout: timeout,
+                )
             case .downloads:
-                _ = try await client.database.downloads()
+                _ = try await client.database.downloads(timeout: timeout)
             case .downloadURL:
-                _ = try await client.database.downloadURL(id: "bogon_ip_v1", format: .csvgz)
+                _ = try await client.database.downloadURL(
+                    id: "bogon_ip_v1", format: .csvgz, timeout: timeout,
+                )
             }
         }
         return try #require(caught)

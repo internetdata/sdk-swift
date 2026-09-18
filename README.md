@@ -13,7 +13,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/internetdata/sdk-swift.git", from: "2.1.0"),
+    .package(url: "https://github.com/internetdata/sdk-swift.git", from: "2.2.0"),
 ]
 ```
 
@@ -54,6 +54,14 @@ let client = InternetDataClient(options: .init(apiKey: key, retries: 4))
 ```
 
 Each attempt is abandoned after 30 seconds by default (`timeout` on the options), which fails as a retryable `network` error. A download is timed only until object storage starts answering, so a large file is never cut off.
+
+From 2.2.0, `list`, `metadata`, `checksums`, `downloads` and `downloadURL` each take a `timeout` of their own, bounding each attempt at that one call in place of the client's:
+
+```swift
+let databases = try await client.database.list(timeout: .seconds(5))
+```
+
+The transfers deliberately take none, so there is nothing to pass and a call that tries does not compile rather than accepting the option and quietly doing nothing with it: a database runs to gigabytes and minutes, so any bound that suits a JSON call would abandon a healthy download. `downloadURL` does take one, because minting the link is an ordinary API request - it bounds that request, not whatever you do with the link afterwards.
 
 ### What is inside a database
 

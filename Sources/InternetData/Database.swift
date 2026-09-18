@@ -18,6 +18,13 @@ public typealias DownloadSink = (ArraySlice<UInt8>) async throws -> Void
 /// the licenses its organization holds, so an answer cached against one key is
 /// not an answer for another, and a listing is small and cheap next to the files
 /// it describes.
+///
+/// Every call here that asks the API a question takes a `timeout`, bounding each
+/// ATTEMPT of that one call in place of the client's. The transfers take none
+/// and there is no argument to pass: a database runs to gigabytes and minutes,
+/// so any bound that suits a JSON call would abandon a healthy download, and a
+/// call that tries to set one does not compile rather than being quietly
+/// ignored.
 public struct DatabaseAPI: Sendable {
     private let api: Client
     private let transport: any ClientTransport
@@ -39,9 +46,12 @@ public struct DatabaseAPI: Sendable {
     /// so what comes back is the whole of what you may know about. Do not cache
     /// one organization's listing and reuse it for another key, and do not
     /// reconstruct a catalog from anywhere else.
-    public func list() async throws -> [Database] {
+    ///
+    /// - Parameter timeout: Overrides the client's ``InternetDataClient/Options/timeout``
+    ///   for each attempt of this call.
+    public func list(timeout: Duration? = nil) async throws -> [Database] {
         try await withRetry(retries) {
-            try await withDeadline(timeout) {
+            try await withDeadline(timeout ?? self.timeout) {
                 let output = try await api.listDatabases()
                 guard case .ok(let ok) = output else {
                     throw unexpected(output)
@@ -54,9 +64,12 @@ public struct DatabaseAPI: Sendable {
     /// What is inside one database: schema, sample rows, row count, sizes.
     ///
     /// Takes a versioned id from ``Database/versions``, e.g. `bogon_ip_v1`.
-    public func metadata(id: String) async throws -> DatabaseMetadata {
+    ///
+    /// - Parameter timeout: Overrides the client's ``InternetDataClient/Options/timeout``
+    ///   for each attempt of this call.
+    public func metadata(id: String, timeout: Duration? = nil) async throws -> DatabaseMetadata {
         try await withRetry(retries) {
-            try await withDeadline(timeout) {
+            try await withDeadline(timeout ?? self.timeout) {
                 let output = try await api.databaseMetadataV2(query: .init(id: id))
                 guard case .ok(let ok) = output else {
                     throw unexpected(output)
@@ -71,9 +84,14 @@ public struct DatabaseAPI: Sendable {
     /// Returns the whole set rather than one algorithm: which digest you want is
     /// your choice, not ours, and they arrive nested under `checksums` rather
     /// than at the top level.
-    public func checksums(id: String, format: DatabaseFormat) async throws -> DatabaseChecksums {
+    ///
+    /// - Parameter timeout: Overrides the client's ``InternetDataClient/Options/timeout``
+    ///   for each attempt of this call.
+    public func checksums(
+        id: String, format: DatabaseFormat, timeout: Duration? = nil,
+    ) async throws -> DatabaseChecksums {
         try await withRetry(retries) {
-            try await withDeadline(timeout) {
+            try await withDeadline(timeout ?? self.timeout) {
                 let output = try await api.databaseChecksumV2(
                     query: .init(id: id, format: .init(format)),
                 )
@@ -87,10 +105,13 @@ public struct DatabaseAPI: Sendable {
 
     /// Your organization's recent download attempts, newest first.
     ///
-    /// - Parameter limit: How many to return. Clamped to 200 by the API.
-    public func downloads(limit: Int? = nil) async throws -> [Download] {
+    /// - Parameters:
+    ///   - limit: How many to return. Clamped to 200 by the API.
+    ///   - timeout: Overrides the client's ``InternetDataClient/Options/timeout``
+    ///     for each attempt of this call.
+    public func downloads(limit: Int? = nil, timeout: Duration? = nil) async throws -> [Download] {
         try await withRetry(retries) {
-            try await withDeadline(timeout) {
+            try await withDeadline(timeout ?? self.timeout) {
                 let output = try await api.listDownloads(query: .init(limit: limit))
                 guard case .ok(let ok) = output else {
                     throw unexpected(output)
@@ -111,9 +132,15 @@ public struct DatabaseAPI: Sendable {
     /// The default transport refuses redirects outright. If you supplied your
     /// own and it follows them, this throws rather than handing back a URL,
     /// because by then the transport is holding the database.
-    public func downloadURL(id: String, format: DatabaseFormat) async throws -> URL {
+    ///
+    /// - Parameter timeout: Overrides the client's ``InternetDataClient/Options/timeout``
+    ///   for each attempt at MINTING the link, which is an ordinary API request.
+    ///   It says nothing about the transfer you then run with it.
+    public func downloadURL(
+        id: String, format: DatabaseFormat, timeout: Duration? = nil,
+    ) async throws -> URL {
         try await withRetry(retries) {
-            try await withDeadline(timeout) {
+            try await withDeadline(timeout ?? self.timeout) {
                 let output = try await api.downloadDatabaseV2(
                     query: .init(id: id, format: .init(format)),
                 )
@@ -201,7 +228,7 @@ public struct DatabaseAPI: Sendable {
     /// resident memory and can fail outright. Reach for this at the small end,
     /// where the bytes are going straight into a parser; use the file overload of
     /// `download(_:format:to:)` for anything you have not measured, and
-    /// ``metadata(id:)`` tells you which end you are at before you start.
+    /// ``metadata(id:timeout:)`` tells you which end you are at before you start.
     public func downloadBytes(_ id: String, format: DatabaseFormat) async throws -> Data {
         var data = Data()
         _ = try await download(id, format: format) { chunk in
