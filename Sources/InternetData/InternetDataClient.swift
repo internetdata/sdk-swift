@@ -21,6 +21,7 @@ public struct InternetDataClient: Sendable {
     public init(options: Options = Options()) {
         precondition(options.retries >= 0, "retries cannot be negative")
         precondition(options.timeout > .zero, "timeout must be positive")
+        precondition(options.timeout <= maxTimeout, "timeout is longer than the runtime can count")
 
         // Attached only when there is a key, so a keyless client sends no
         // `Authorization` header rather than `Bearer ` with nothing behind it -
@@ -37,7 +38,7 @@ public struct InternetDataClient: Sendable {
         // to reach the same implementation a caller substituted.
         let transport = options.transport ?? DefaultTransport.shared
         let api = Client(
-            serverURL: options.baseURL,
+            serverURL: withoutTrailingSlashes(options.baseURL),
             configuration: Configuration(dateTranscoder: LenientDateTranscoder()),
             transport: transport,
             middlewares: middlewares,
@@ -62,6 +63,13 @@ extension InternetDataClient {
         /// today answers `401` without one, but that is what the API serves
         /// rather than a property of its shape.
         public var apiKey: String?
+        /// Where the API is served. Default ``InternetDataClient/defaultBaseURL``.
+        ///
+        /// A trailing slash is dropped. Every path this client appends begins with
+        /// one and the transport appends it to whatever path the base URL already
+        /// carries, so `https://internetdata.io/` would ask for `//api/v2/...`.
+        /// That is a different path to the server: production answers it with a
+        /// `308` the default transport refuses to follow, so every call would fail.
         public var baseURL: URL
         /// Retry attempts for a transient failure. Default 2.
         public var retries: Int
@@ -69,6 +77,11 @@ extension InternetDataClient {
         /// the answer. Default 30 seconds. Per ATTEMPT, so a retried call may
         /// take longer in total. A database transfer is bounded only until its
         /// response head arrives, so a download that takes minutes is not cut off.
+        ///
+        /// Must be positive, and short enough for the concurrency runtime to count
+        /// to. Zero, a negative duration and one near the top of `Int64` seconds
+        /// are each a bound no attempt could meet; a call given one refuses it as
+        /// ``InternetDataErrorKind/badRequest`` rather than failing on the wire.
         public var timeout: Duration
         /// Override the HTTP implementation. Anything you supply owns its own
         /// redirect policy, and the download endpoint's `302` must not be
@@ -89,4 +102,18 @@ extension InternetDataClient {
             self.transport = transport
         }
     }
+}
+
+// Every path the generated client appends begins with a slash, and the transport
+// appends it to whatever path the base URL already carries, so a base URL ending
+// in one asks for `//api/v2/...`. Production answers that with a `308` the
+// default transport refuses to follow while staging answers `401`, so the
+// mistake is invisible exactly where it is cheap to find. Every trailing slash
+// goes rather than one: dropping a single slash still doubles `.../`.
+private func withoutTrailingSlashes(_ url: URL) -> URL {
+    var text = url.absoluteString
+    while text.hasSuffix("/") {
+        text.removeLast()
+    }
+    return URL(string: text) ?? url
 }

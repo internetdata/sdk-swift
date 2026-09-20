@@ -312,6 +312,27 @@ struct ClientTests {
         #expect(InternetDataClient.Options(apiKey: "k").baseURL == InternetDataClient.defaultBaseURL)
         #expect(InternetDataClient.defaultBaseURL.absoluteString == "https://internetdata.io")
     }
+
+    // The transport appends the request path to whatever path the base URL
+    // carries, so a trailing slash asks for `//api/v2/...`. Production answers
+    // that with a `308` the default transport refuses to follow - every call
+    // fails - while staging answers `401`, so only a real origin shows it; a
+    // stub is handed the base URL and the path separately and never joins them.
+    @Test("a trailing slash on the base URL is dropped", arguments: ["/", "//", "///"])
+    func aTrailingSlashIsDropped(_ suffix: String) async throws {
+        let api = try await TestOrigin.start { _ in .listing }
+        defer { Task { try? await api.stop() } }
+
+        let client = InternetDataClient(
+            options: .init(
+                apiKey: "key", baseURL: URL(string: "http://127.0.0.1:\(api.port)\(suffix)")!,
+            ),
+        )
+        let databases = try await client.database.list()
+
+        #expect(databases.isEmpty)
+        #expect(api.receivedPaths == [StubTransport.listPath])
+    }
 }
 
 /// The download endpoint answers `302` to object storage, and following it would

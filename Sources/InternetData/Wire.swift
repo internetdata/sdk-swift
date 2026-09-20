@@ -160,6 +160,20 @@ private func backoff(_ attempt: Int) -> Duration {
     .milliseconds(min(5_000, 200 << min(attempt, 5)))
 }
 
+/// The longest bound ``withDeadline(_:_:)`` can be given.
+///
+/// `Task.sleep(for:)` turns the deadline - now PLUS the bound - into whole
+/// seconds in an `Int64`, and one that does not fit TRAPS inside the concurrency
+/// runtime with `Fatal error: Not enough bits to represent the passed value`,
+/// which no caller and no test can handle. Measured on Swift 6.3, Linux,
+/// 2026-09-20: `.seconds(Int64.max)` and `.seconds(Int64.max - 1)` both crash
+/// the process, while `.seconds(Int64.max / 2)` and `.seconds(8e18)` are slept
+/// on happily, because what has to fit alongside the bound is the monotonic
+/// clock's own reading. Half the range is refused rather than the exact
+/// headroom, which moves as the machine runs; the ~146 billion years left over
+/// are past anything a caller means by a timeout.
+let maxTimeout: Duration = .seconds(Int64.max / 2)
+
 /// Bounds one attempt with a deadline the library owns.
 ///
 /// Raced rather than left to cancellation: cancelling the attempt releases its
@@ -170,7 +184,16 @@ private func backoff(_ attempt: Int) -> Duration {
 func withDeadline<T: Sendable>(
     _ timeout: Duration, _ operation: @escaping @Sendable () async throws -> T,
 ) async throws -> T {
-    precondition(timeout > .zero, "timeout must be positive")
+    // Refused rather than trapped: this is the one place a per-call value is
+    // seen, and a `precondition` here crashes a caller's process over an
+    // argument it could have been handed back. Same shape as a per-call
+    // `concurrency` below 1 in the sibling client.
+    guard timeout > .zero, timeout <= maxTimeout else {
+        throw InternetDataError(
+            kind: .badRequest,
+            message: "timeout must be positive and at most \(maxTimeout), got \(timeout)",
+        )
+    }
     let race = Race<T>()
     let attempt = Task {
         do {

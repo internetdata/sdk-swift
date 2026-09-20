@@ -231,6 +231,46 @@ struct TimeoutTests {
         #expect(ContinuousClock.now - started < .seconds(2), "the cancellation waited for the deadline")
     }
 
+    // A bound no attempt could meet is an argument mistake and is answered as
+    // one. Through 2.2.0 `withDeadline` held a `precondition`, so zero or a
+    // negative crashed the caller's process, and a `Duration` past what
+    // `Task.sleep` counts to crashed it from inside the concurrency runtime.
+    @Test(
+        "a timeout no attempt could meet is refused before any request",
+        arguments: [
+            Duration.zero, .seconds(-1), .milliseconds(-1), .seconds(Int64.max),
+            maxTimeout + .seconds(1),
+        ],
+    )
+    func anImpossibleTimeoutIsRefused(_ timeout: Duration) async throws {
+        let stub = StubTransport([StubTransport.listPath: .json(["databases": []])])
+        let client = InternetDataClient(options: .init(apiKey: "key", retries: 2, transport: stub))
+
+        let failure = await #expect(throws: InternetDataError.self) {
+            try await client.database.list(timeout: timeout)
+        }
+        let error = try #require(failure)
+
+        #expect(error.kind == .badRequest)
+        #expect(error.isRetryable == false)
+        // Retries are on, so a refusal classified as retryable would show up
+        // here as three requests rather than as the wrong kind alone.
+        #expect(await stub.callCount == 0, "the request went out before the bound was checked")
+    }
+
+    // A check written into one method is a check the other four callers do not
+    // get, and they reach `withDeadline` by four separate paths.
+    @Test("every call refuses an impossible timeout", arguments: Call.allCases)
+    func everyCallRefusesAnImpossibleTimeout(_ call: Call) async throws {
+        let stub = StubTransport()
+        let client = InternetDataClient(options: .init(apiKey: "key", retries: 0, transport: stub))
+
+        let failure = try await Self.failure(of: call, on: client, timeout: .zero)
+
+        #expect(failure.kind == .badRequest)
+        #expect(await stub.callCount == 0)
+    }
+
     static func client(
         _ origin: TestOrigin, retries: Int = 0, timeout: Duration = Self.timeout,
     ) -> InternetDataClient {

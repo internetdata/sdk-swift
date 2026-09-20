@@ -26,9 +26,14 @@ struct ConformanceTests {
             let route = StubTransport.Route(
                 status: testCase.status, body: testCase.body.encoded, headers: testCase.headers,
             )
-            // No retries, so a retryable failure surfaces rather than looping.
+            // A non-retryable case is sent with retries ON, so the request count
+            // below is what says it was not retried: with retries off one request
+            // is guaranteed, and a classifier that retried every failure passed
+            // this test unchanged. A retryable case keeps them off so it surfaces
+            // here rather than looping; retryableErrorsAreRetried is what asserts
+            // that one does retry.
             let stub = StubTransport([StubTransport.metadataPath: route])
-            let client = testClient(stub, retries: 0)
+            let client = testClient(stub, retries: testCase.expect.retryable ? 0 : 2)
 
             let failure = await #expect(throws: InternetDataError.self) {
                 try await client.database.metadata(id: "bogon_ip_v1")
