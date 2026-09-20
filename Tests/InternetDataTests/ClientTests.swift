@@ -314,10 +314,10 @@ struct ClientTests {
     }
 
     // The transport appends the request path to whatever path the base URL
-    // carries, so a trailing slash asks for `//api/v2/...`. Production answers
-    // that with a `308` the default transport refuses to follow - every call
-    // fails - while staging answers `401`, so only a real origin shows it; a
-    // stub is handed the base URL and the path separately and never joins them.
+    // carries, so a trailing slash asks for `//api/v2/...`. The server answers
+    // that with a `308` the default transport refuses to follow, so every call
+    // fails. Only a real origin shows it: a stub is handed the base URL and the
+    // path separately and never joins them.
     @Test("a trailing slash on the base URL is dropped", arguments: ["/", "//", "///"])
     func aTrailingSlashIsDropped(_ suffix: String) async throws {
         let api = try await TestOrigin.start { _ in .listing }

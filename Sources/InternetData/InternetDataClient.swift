@@ -106,10 +106,10 @@ extension InternetDataClient {
 
 // Every path the generated client appends begins with a slash, and the transport
 // appends it to whatever path the base URL already carries, so a base URL ending
-// in one asks for `//api/v2/...`. Production answers that with a `308` the
-// default transport refuses to follow while staging answers `401`, so the
-// mistake is invisible exactly where it is cheap to find. Every trailing slash
-// goes rather than one: dropping a single slash still doubles `.../`.
+// in one asks for `//api/v2/...`. That is a different path to the server, which
+// answers it with a `308` the default transport refuses to follow, so every call
+// fails. Every trailing slash goes rather than one: dropping a single slash
+// still doubles `.../`.
 private func withoutTrailingSlashes(_ url: URL) -> URL {
     var text = url.absoluteString
     while text.hasSuffix("/") {
