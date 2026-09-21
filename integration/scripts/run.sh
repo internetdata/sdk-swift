@@ -13,9 +13,9 @@
 #
 #   1. Nothing published satisfies the declared range. SwiftPM resolves a
 #      version from a git TAG, so before the first release there is no artifact.
-#   2. The staging key is missing or EMPTY. Every endpoint here needs a bearer
-#      key, so without one there is nothing to exercise at all; the suite skips
-#      from the inside, naming the secret, rather than failing.
+#   2. The staging key is missing or EMPTY. Every database endpoint here needs a
+#      bearer key, so without one those tests skip from the inside, naming the
+#      secret, rather than failing. The OAuth checks carry no key and run.
 #
 # Swift runs natively when the toolchain is present and inside the official
 # image otherwise, so a dev box with no Swift and a CI container both use this
@@ -28,7 +28,7 @@ cd "$(dirname "$0")/.."
 PACKAGE_URL="https://github.com/internetdata/sdk-swift.git"
 # Mirrors the range in Package.swift. Both are read by hand rather than parsed:
 # a manifest is Swift, and the gate has to run before anything is built.
-RANGE_LOW="2.0.0"
+RANGE_LOW="2.3.0"
 RANGE_HIGH="3.0.0"
 SECRET="INTERNETDATA_STAGING_KEY"
 
@@ -140,7 +140,7 @@ function report_credential() {
         echo "==> ${SECRET} is present"
         return 0
     fi
-    notice "no ${SECRET}: every test skips from inside the suite, naming the secret"
+    notice "no ${SECRET}: the database tests skip from inside the suite, the OAuth checks run"
 }
 
 function swift_run() {

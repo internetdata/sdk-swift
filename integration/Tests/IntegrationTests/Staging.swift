@@ -11,13 +11,13 @@ import Testing
 
 let staging = URL(string: "https://staging.internetdata.io")!
 
-/// The one credential this suite needs.
+/// The one credential the database tests need.
 ///
-/// Every v2 endpoint requires a bearer key, so without it there is nothing at
-/// all to exercise. A secret that does not exist interpolates to an EMPTY string
-/// in CI rather than leaving the variable unset, so a plain `!= nil` check never
-/// fires and an empty key is sent as no key at all; emptiness is what counts as
-/// absent here.
+/// Every v2 database endpoint requires a bearer key, so without it those tests
+/// have nothing to exercise; the OAuth checks carry none. A secret that does not
+/// exist interpolates to an EMPTY string in CI rather than leaving the variable
+/// unset, so a plain `!= nil` check never fires and an empty key is sent as no
+/// key at all; emptiness is what counts as absent here.
 enum Credential {
     static let secret = "INTERNETDATA_STAGING_KEY"
 
@@ -26,9 +26,9 @@ enum Credential {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Why the suite cannot run, or `nil` when it can.
+    /// Why the database tests cannot run, or `nil` when they can.
     static var skipReason: String? {
-        key.isEmpty ? "\(secret) is not set, so nothing can be exercised" : nil
+        key.isEmpty ? "\(secret) is not set, so no database call can be exercised" : nil
     }
 
     /// The trait that skips, naming the secret, rather than failing a run that
