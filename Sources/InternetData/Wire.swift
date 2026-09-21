@@ -155,7 +155,15 @@ func withRetry<T>(_ retries: Int, _ operation: () async throws -> T) async throw
             guard attempt < retries, failure.isRetryable else {
                 throw failure
             }
-            try await Task.sleep(for: failure.retryAfter ?? backoff(attempt))
+            // `Retry-After` is the server's number, and handed to `Task.sleep`
+            // unchecked, one past `maxTimeout` never ends or traps:
+            // `4611686018427387904` would sleep ~146 billion years, and
+            // `9223372036854775807` crashed the caller's process. Too long to
+            // count, it is waited out on the client's own backoff instead; the
+            // 429 is still a throttle, and the error keeps the value the server
+            // sent.
+            let asked = failure.retryAfter.flatMap { $0 <= maxTimeout ? $0 : nil }
+            try await Task.sleep(for: asked ?? backoff(attempt))
             attempt += 1
         }
     }
@@ -165,7 +173,8 @@ private func backoff(_ attempt: Int) -> Duration {
     .milliseconds(min(5_000, 200 << min(attempt, 5)))
 }
 
-/// The longest bound ``withDeadline(_:_:)`` can be given.
+/// The longest bound ``withDeadline(_:_:)`` can be given, and the longest
+/// `Retry-After` ``withRetry(_:_:)`` will wait out.
 ///
 /// `Task.sleep(for:)` turns the deadline - now PLUS the bound - into whole
 /// seconds in an `Int64`, and one that does not fit TRAPS inside the concurrency
