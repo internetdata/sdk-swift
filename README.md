@@ -13,7 +13,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/internetdata/sdk-swift.git", from: "2.2.1"),
+    .package(url: "https://github.com/internetdata/sdk-swift.git", from: "2.3.0"),
 ]
 ```
 
@@ -43,7 +43,7 @@ for database in try await client.database.list() {
 }
 ```
 
-Every call lives under `client.database`. The downloads are the whole of this API today, but the sibling VPNDetection client spells the same seven calls the same way, so a codebase holding both does not have to remember which one is flat.
+The database calls live under `client.database`, where the sibling VPNDetection client spells the same seven the same way, so a codebase holding both does not have to remember which one is flat.
 
 A license is held against a FAMILY (`vpn_ip`), while a download names a VERSION (`vpn_ip_v1`), so the ids everything below takes come from `versions`. Old versions are frozen rather than migrated, so both stay downloadable.
 
@@ -165,6 +165,27 @@ let client = InternetDataClient(options: .init(apiKey: key, transport: URLSessio
 ```
 
 One thing to know if you do: the download endpoint answers `302`, and the library follows that redirect itself as a second request rather than letting the transport do it. That is what keeps your API key off object storage, and it is what stops a whole database being read into memory before the library ever sees the link. Configure yours not to follow redirects. The library refuses such a response rather than reading it, but the transfer has already started by then.
+
+### Sign in with OAuth (device flow)
+
+A program running on the person's own machine can let them sign in with a browser and pick one of their API keys, instead of asking them to paste it:
+
+```swift
+let client = InternetDataClient()
+
+let device = try await client.oauth.deviceAuthorization(
+    clientID: "your-client-id", scope: "account.read apikeys.read apikeys.reveal",
+)
+print("Open \(device.verificationURI) and enter \(device.userCode)")
+
+let token = try await client.oauth.pollDeviceToken(device, clientID: "your-client-id")
+guard let apikey = token.apikey else {
+    fatalError("no API key came back: none was picked, or it can't be shown again")
+}
+let keyed = InternetDataClient(apiKey: apikey)
+```
+
+A denied sign-in throws `OauthError.accessDenied` and a code that ran out `OauthError.expiredToken`. Client IDs are issued on request from support@internetdata.io, and `client.oauth.revoke(refreshToken, clientID: "your-client-id")` signs the machine out again.
 
 ## Other Libraries
 

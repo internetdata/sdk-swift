@@ -221,15 +221,18 @@ extension TestOrigin.Answer {
         )
     }
 
-    /// A whole empty listing, served in one piece.
-    static var listing: Self {
-        let body = Array(#"{"databases":[]}"#.utf8)
+    /// A whole JSON body, served in one piece.
+    static func json(_ text: String) -> Self {
+        let body = Array(text.utf8)
         return .init(
             status: .ok,
             headers: [("Content-Type", "application/json"), ("Content-Length", "\(body.count)")],
             body: body,
         )
     }
+
+    /// A whole empty listing, served in one piece.
+    static var listing: Self { json(#"{"databases":[]}"#) }
 
     /// A whole empty listing, one byte every 20 ms: about a second in all, and
     /// never more than 20 ms between two bytes.

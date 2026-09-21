@@ -8,15 +8,19 @@ import OpenAPIRuntime
 /// so it is immutable and `Sendable` and its methods run on whatever executor
 /// called them.
 ///
-/// Every call lives under ``database``. The downloads are the whole of this API
-/// today, so a second level buys nothing on its own; it is here because the
-/// sibling VPNDetection client spells the same seven calls the same way, and a
-/// codebase holding both should not have to remember which one is flat.
+/// The database calls live under ``database`` and the OAuth sign-in under
+/// ``oauth``. The second level is there because the sibling VPNDetection client
+/// spells the same calls the same way, and a codebase holding both should not
+/// have to remember which one is flat.
 public struct InternetDataClient: Sendable {
     public static let defaultBaseURL = URL(string: "https://internetdata.io")!
 
     /// The licensed database downloads.
     public let database: DatabaseAPI
+
+    /// Sign a person in with OAuth's device flow and receive one of their API
+    /// keys. Its requests never carry this client's key.
+    public let oauth: OauthAPI
 
     public init(options: Options = Options()) {
         precondition(options.retries >= 0, "retries cannot be negative")
@@ -37,14 +41,19 @@ public struct InternetDataClient: Sendable {
         // through the transport rather than through the generated client and has
         // to reach the same implementation a caller substituted.
         let transport = options.transport ?? DefaultTransport.shared
+        let baseURL = withoutTrailingSlashes(options.baseURL)
         let api = Client(
-            serverURL: withoutTrailingSlashes(options.baseURL),
+            serverURL: baseURL,
             configuration: Configuration(dateTranscoder: LenientDateTranscoder()),
             transport: transport,
             middlewares: middlewares,
         )
         self.database = DatabaseAPI(
             api: api, transport: transport, retries: options.retries, timeout: options.timeout,
+        )
+        self.oauth = OauthAPI(
+            transport: transport, baseURL: baseURL, retries: options.retries,
+            timeout: options.timeout,
         )
     }
 
@@ -59,9 +68,9 @@ extension InternetDataClient {
     /// How a client behaves. Everything has a default.
     public struct Options: Sendable {
         /// Your API key, carrying the `db.download` scope. Optional: omit it and
-        /// no `Authorization` header is sent at all. Every endpoint published
-        /// today answers `401` without one, but that is what the API serves
-        /// rather than a property of its shape.
+        /// no `Authorization` header is sent at all. Every database endpoint
+        /// published today answers `401` without one, but that is what the API
+        /// serves rather than a property of its shape. ``oauth`` takes none.
         public var apiKey: String?
         /// Where the API is served. Default ``InternetDataClient/defaultBaseURL``.
         ///
