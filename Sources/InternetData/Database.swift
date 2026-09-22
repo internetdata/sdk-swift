@@ -40,12 +40,9 @@ public struct DatabaseAPI: Sendable {
 
     /// Every database your organization may see, with its license beside it.
     ///
-    /// The catalog is not the same for everyone. A database commissioned for a
-    /// single customer is ABSENT from this list for every other organization
-    /// rather than present with a `standing` of ``Database/Standing/unlicensed``,
-    /// so what comes back is the whole of what you may know about. Do not cache
-    /// one organization's listing and reuse it for another key, and do not
-    /// reconstruct a catalog from anywhere else.
+    /// This is the server's answer for this key, so a listing held from one key
+    /// is not an answer for another. Do not cache one organization's listing and
+    /// reuse it for another key.
     ///
     /// - Parameter timeout: Overrides the client's ``InternetDataClient/Options/timeout``
     ///   for each attempt of this call.
