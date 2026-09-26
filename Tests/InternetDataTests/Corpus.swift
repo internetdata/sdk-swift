@@ -48,7 +48,7 @@ struct Corpus: Decodable, Sendable {
 
 extension Corpus {
     // Located from the source file rather than from a bundle: the corpus is
-    // regenerated into the repository root by sdk/common, which is outside any
+    // regenerated into the repository root, which is outside any
     // target directory and so cannot be declared as a SwiftPM resource.
     static let shared: Corpus = {
         let root = URL(fileURLWithPath: #filePath)
