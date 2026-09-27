@@ -221,6 +221,7 @@ struct ClientTests {
                     "dataset_id": "bogon_asn_v1",
                     "format": "csvgz",
                     "outcome": "ok",
+                    "sample": true,
                     "bytes": 264,
                     "http_status": 302,
                     "apikey_id": "86be2651-2c75-4180-8287-25c72a758a72",
@@ -237,6 +238,7 @@ struct ClientTests {
         #expect(attempt.datasetId == "bogon_asn_v1")
         #expect(attempt.format == "csvgz")
         #expect(attempt.outcome == .ok)
+        #expect(attempt.sample)
         #expect(attempt.bytes == 264)
         #expect(attempt.httpStatus == 302)
         #expect(attempt.apikeyId == "86be2651-2c75-4180-8287-25c72a758a72")

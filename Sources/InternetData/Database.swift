@@ -358,6 +358,8 @@ public struct DatabaseVersion: Sendable, Hashable {
     public let summary: String
     /// The formats this version is BUILT in.
     public let formats: [DatabaseFormat]
+    /// The formats an evaluation sample is published in, or `nil` when none is.
+    public let sampleFormats: [DatabaseFormat]?
 }
 
 /// What is inside one database.
@@ -380,6 +382,10 @@ public struct DatabaseMetadata: Sendable, Hashable {
     public let sample: [String: [[String: JSONValue]]]
     /// Bytes per format.
     public let size: [String: Int64]
+    /// Bytes per format of the evaluation sample, where one is published.
+    public let sampleSize: [String: Int64]?
+    /// Row count in the evaluation sample.
+    public let sampleEntries: Int?
 }
 
 /// One column of a database, as published.
@@ -405,6 +411,8 @@ public struct Download: Sendable, Hashable {
     public let datasetId: String
     public let format: String
     public let outcome: Outcome
+    /// The evaluation sample rather than the database itself.
+    public let sample: Bool
     /// Object size at redirect time, NOT bytes delivered: the transfer is a
     /// presigned redirect straight to object storage, so the API never observes
     /// how much of it was taken.
@@ -478,6 +486,7 @@ extension DatabaseVersion {
         self.version = wire.version
         self.summary = wire.summary
         self.formats = wire.formats.map(DatabaseFormat.init)
+        self.sampleFormats = wire.sampleFormats?.map(DatabaseFormat.init)
     }
 }
 
@@ -512,6 +521,8 @@ extension DatabaseMetadata {
             rows.map { $0.value.mapValues(JSONValue.init) }
         }
         self.size = wire.size.additionalProperties
+        self.sampleSize = wire.sampleSize?.additionalProperties
+        self.sampleEntries = wire.sampleEntries
     }
 }
 
@@ -537,6 +548,7 @@ extension Download {
         self.datasetId = wire.datasetId
         self.format = wire.format
         self.outcome = Outcome(wire.outcome)
+        self.sample = wire.sample
         self.bytes = wire.bytes
         self.httpStatus = wire.httpStatus
         self.apikeyId = wire.apikeyId
