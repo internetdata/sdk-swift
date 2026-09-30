@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.5.0 - 2026-09-30
+
+### Features
+
+- Add the authorization code sign-in, with PKCE ([`1fd6193`](https://github.com/internetdata/sdk-swift/commit/1fd6193eb154d94e6444d8a4fb9daaf55e83520b))
+
 ## 2.4.0 - 2026-09-27
 
 ### Features
