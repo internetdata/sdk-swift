@@ -187,6 +187,27 @@ let keyed = InternetDataClient(apiKey: apikey)
 
 A denied sign-in throws `OauthError.accessDenied` and a code that ran out `OauthError.expiredToken`. Client IDs are issued on request from support@internetdata.io, and `client.oauth.revoke(refreshToken, clientID: "your-client-id")` signs the machine out again.
 
+### Sign in with OAuth (authorization code)
+
+An app that can take a browser redirect signs the person in there instead, with a PKCE pair made for that one sign-in:
+
+```swift
+let client = InternetDataClient()
+let redirectURI = "http://127.0.0.1:8765/callback"
+let pkce = client.oauth.createPkce()
+
+let url = try client.oauth.authorizationURL(
+    clientID: "your-client-id", redirectURI: redirectURI, codeChallenge: pkce.challenge,
+    scope: "apikeys.use", state: "your-state",
+)
+// Open url in the browser. Its redirect to redirectURI carries code and state.
+let token = try await client.oauth.exchangeAuthorizationCode(
+    code, clientID: "your-client-id", codeVerifier: pkce.verifier, redirectURI: redirectURI,
+)
+```
+
+Check that `state` came back as you sent it before you exchange `code`, which works once. The client ID can also be the https URL of a client metadata document your app serves, and such an app is never handed a key, so `token.apikey` stays `nil`.
+
 ## Other Libraries
 
 There are official InternetData client libraries available for many languages including PHP, Python, Go, Java, Ruby, and many popular frameworks such as Django, Rails, and Laravel. See our GitHub at https://github.com/internetdata for more.

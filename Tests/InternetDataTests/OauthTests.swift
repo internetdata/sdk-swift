@@ -44,9 +44,19 @@ struct OauthTests {
         _ = try await succeed(stub) { try await oauth.exchangeRefreshToken("mo_rt_x", clientID: id) }
         try await succeed(stub) { try await oauth.revoke("mo_rt_x", clientID: id) }
         _ = try await succeed(stub) { try await oauth.pollDeviceToken(Self.device, clientID: id) }
+        _ = try await succeed(stub) {
+            try await oauth.exchangeAuthorizationCode(
+                "mo_ac_x", clientID: id, codeVerifier: "verifier", redirectURI: "http://127.0.0.1:8765/cb",
+            )
+        }
+        let url = try oauth.authorizationURL(
+            clientID: id, redirectURI: "http://127.0.0.1:8765/cb", codeChallenge: "c",
+            scope: "apikeys.use", state: "s", resource: "https://x.test/",
+        )
+        #expect(!url.absoluteString.contains(key), "the key is in the authorization URL")
 
         let sent = stub.requests
-        #expect(sent.count == 6)
+        #expect(sent.count == 7)
         let headers = Set((rule["forbiddenHeaders"]?.arrayValue ?? []).compactMap(\.stringValue))
         let query = Set((rule["forbiddenQuery"]?.arrayValue ?? []).compactMap(\.stringValue))
         #expect(!headers.isEmpty && !query.isEmpty)
@@ -67,7 +77,8 @@ struct OauthTests {
         let endpoints = try #require(Self.oauth["endpoints"])
         let forms = try #require(Self.oauth["forms"])
         let contentType = try #require(forms["contentType"]?.stringValue)
-        for testCase in forms["cases"]?.arrayValue ?? [] {
+        let deferred = Self.oauth["deferred"]?["forms"]?.arrayValue ?? []
+        for testCase in (forms["cases"]?.arrayValue ?? []) + deferred {
             let name = testCase["name"]?.stringValue ?? "?"
             let stub = OauthStub([Self.everyRequiredMember])
             let oauth = Self.client(stub).oauth
@@ -214,7 +225,8 @@ struct OauthTests {
 
     @Test("only what consumes nothing is retried, and never an OAuth refusal")
     func retries() async throws {
-        for testCase in Self.oauth["retries"]?["cases"]?.arrayValue ?? [] {
+        let deferred = Self.oauth["deferred"]?["retries"]?.arrayValue ?? []
+        for testCase in (Self.oauth["retries"]?["cases"]?.arrayValue ?? []) + deferred {
             let name = testCase["name"]?.stringValue ?? "?"
             let stub = OauthStub((testCase["responses"]?.arrayValue ?? []).map(OauthStub.Reply.init))
             let oauth = Self.client(stub).oauth
@@ -294,6 +306,7 @@ struct OauthTests {
 
     enum Operation: String, CaseIterable, Sendable {
         case metadata, deviceAuthorization, exchangeDeviceCode, exchangeRefreshToken, revoke, pollDeviceToken
+        case exchangeAuthorizationCode
     }
 
     // Against a body that stalls after its head, so the bound is shown to cover the
@@ -324,6 +337,10 @@ struct OauthTests {
                 try await oauth.revoke("r", clientID: "c", timeout: timeout)
             case .pollDeviceToken:
                 _ = try await oauth.pollDeviceToken(Self.device, clientID: "c", timeout: timeout)
+            case .exchangeAuthorizationCode:
+                _ = try await oauth.exchangeAuthorizationCode(
+                    "a", clientID: "c", codeVerifier: "v", redirectURI: "http://r", timeout: timeout,
+                )
             }
         }
         let elapsed = ContinuousClock.now - started
@@ -377,6 +394,10 @@ struct OauthTests {
                 try await oauth.revoke("r", clientID: "c", timeout: .zero)
             case .pollDeviceToken:
                 _ = try await oauth.pollDeviceToken(Self.device, clientID: "c", timeout: .zero)
+            case .exchangeAuthorizationCode:
+                _ = try await oauth.exchangeAuthorizationCode(
+                    "a", clientID: "c", codeVerifier: "v", redirectURI: "http://r", timeout: .zero,
+                )
             }
         }
 
@@ -409,6 +430,63 @@ struct OauthTests {
         #expect(error.kind == .network)
     }
 
+    @Test("a PKCE pair matches the RFC vector and is never reused")
+    func pkce() throws {
+        let vector = try #require(Self.oauth["deferred"]?["pkce"])
+        let oauth = Self.client(OauthStub([Self.everyRequiredMember])).oauth
+        let verifier = try #require(vector["verifier"]?.stringValue)
+        #expect(oauth.pkceChallenge(verifier) == vector["challenge"]?.stringValue)
+
+        let pattern = try #require(vector["generatedVerifierPattern"]?.stringValue)
+        let (first, second) = (oauth.createPkce(), oauth.createPkce())
+        for pair in [first, second] {
+            #expect(pair.verifier.range(of: pattern, options: .regularExpression) != nil, "\(pair.verifier)")
+            #expect(pair.challenge == oauth.pkceChallenge(pair.verifier))
+            #expect(pair.method == vector["method"]?.stringValue)
+        }
+        #expect(first.verifier != second.verifier)
+        #expect(!"\(first)".contains(first.verifier) && !String(reflecting: first).contains(first.verifier))
+    }
+
+    @Test("the authorization URL is built exactly, with no request")
+    func authorizationURL() throws {
+        for testCase in Self.oauth["deferred"]?["authorizationUrl"]?.arrayValue ?? [] {
+            let name = testCase["name"]?.stringValue ?? "?"
+            let stub = OauthStub([Self.everyRequiredMember])
+            let base = try #require(URL(string: testCase["baseUrl"]?.stringValue ?? ""))
+            let client = InternetDataClient(options: .init(baseURL: base, retries: 0, transport: stub))
+            let url = try client.oauth.authorizationURL(
+                clientID: testCase["clientId"]?.stringValue ?? "",
+                redirectURI: testCase["redirectUri"]?.stringValue ?? "",
+                codeChallenge: testCase["codeChallenge"]?.stringValue ?? "",
+                scope: testCase["scope"]?.stringValue, state: testCase["state"]?.stringValue,
+                resource: testCase["resource"]?.stringValue,
+            )
+            #expect(url.absoluteString == testCase["expect"]?.stringValue, "\(name)")
+            #expect(stub.requests.isEmpty, "\(name): building the URL sent a request")
+        }
+    }
+
+    @Test("an empty option is left out, and an empty required value refused")
+    func authorizationURLEmptyValues() throws {
+        let oauth = Self.client(OauthStub([Self.everyRequiredMember])).oauth
+        let bare = try oauth.authorizationURL(clientID: "c", redirectURI: "https://app.example/cb", codeChallenge: "x")
+        let empty = try oauth.authorizationURL(
+            clientID: "c", redirectURI: "https://app.example/cb", codeChallenge: "x", scope: "", state: "", resource: "",
+        )
+        #expect(bare == empty)
+        for (clientID, redirectURI, challenge) in [("", "r", "x"), ("c", "", "x"), ("c", "r", "")] {
+            #expect(throws: InternetDataError.self) {
+                try oauth.authorizationURL(clientID: clientID, redirectURI: redirectURI, codeChallenge: challenge)
+            }
+            do {
+                _ = try oauth.authorizationURL(clientID: clientID, redirectURI: redirectURI, codeChallenge: challenge)
+            } catch let error as InternetDataError {
+                #expect(error.kind == .badRequest)
+            }
+        }
+    }
+
     static func client(_ stub: OauthStub, apiKey: String? = nil, retries: Int = 2) -> InternetDataClient {
         InternetDataClient(
             options: .init(apiKey: apiKey, baseURL: baseURL, retries: retries, transport: stub),
@@ -439,6 +517,12 @@ struct OauthTests {
         case "revoke":
             try await oauth.revoke(args["token"]?.stringValue ?? "", clientID: clientID)
             return ""
+        case "exchangeAuthorizationCode":
+            return try await oauth.exchangeAuthorizationCode(
+                args["code"]?.stringValue ?? "", clientID: clientID,
+                codeVerifier: args["codeVerifier"]?.stringValue ?? "",
+                redirectURI: args["redirectUri"]?.stringValue ?? "",
+            ).accessToken
         default:
             throw InternetDataError(kind: .badRequest, message: "an operation this suite lacks: \(operation)")
         }

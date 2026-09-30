@@ -1,18 +1,24 @@
+import Crypto
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 
-/// Sign a person in with OAuth's device flow.
+/// Sign a person in with OAuth: the device flow, or the authorization code flow.
 ///
 /// Reached as ``InternetDataClient/oauth``. A program on the person's own machine
 /// starts a sign-in with ``deviceAuthorization(clientID:scope:resource:timeout:)``,
 /// shows them ``DeviceAuthorization/verificationURI`` and
 /// ``DeviceAuthorization/userCode``, and waits in
 /// ``pollDeviceToken(_:clientID:timeout:)`` while they approve it in a browser.
+/// An app that can take a browser redirect sends them to
+/// ``authorizationURL(clientID:redirectURI:codeChallenge:scope:state:resource:)``
+/// instead, with a pair from ``createPkce()``, and trades the code the redirect
+/// brings back in ``exchangeAuthorizationCode(_:clientID:codeVerifier:redirectURI:timeout:)``.
 ///
 /// No request here carries the client's API key, and none needs one: build the
 /// client without a key to sign someone in. A client ID is issued on request
-/// through support@internetdata.io.
+/// through support@internetdata.io, or for the authorization code flow is the
+/// https URL of a client metadata document the app serves.
 ///
 /// Every request goes straight to the transport rather than through the
 /// generated client, whose middleware presents the key and classifies an error
@@ -21,6 +27,8 @@ public struct OauthAPI: Sendable {
     // An OAuth answer is a small JSON document; this only stops a runaway body.
     private static let maxBodyBytes = 1 << 20
     private static let deviceCodeGrant = "urn:ietf:params:oauth:grant-type:device_code"
+    /// The only PKCE method the server accepts.
+    private static let pkceMethod = "S256"
 
     private let transport: any ClientTransport
     private let baseURL: URL
@@ -128,6 +136,76 @@ public struct OauthAPI: Sendable {
         }
     }
 
+    /// The URL to open in the person's browser for the authorization code flow.
+    ///
+    /// Makes no request. Once they decide, the server redirects to `redirectURI`
+    /// with a `code` for ``exchangeAuthorizationCode(_:clientID:codeVerifier:redirectURI:timeout:)``
+    /// and the `state` given here, or with an `error`. Every value is
+    /// percent-encoded over UTF-8, leaving only `A-Z a-z 0-9 - . _ ~` literal.
+    ///
+    /// - Parameters:
+    ///   - codeChallenge: The ``Pkce/challenge`` of a pair from ``createPkce()``.
+    ///   - scope: The scopes to request, space-delimited, such as `apikeys.use`.
+    ///   - state: A value of your own that the redirect brings back as sent.
+    ///     Check it before exchanging the code.
+    ///   - resource: The RFC 8707 resource the token is meant for.
+    /// - Throws: ``InternetDataError`` with kind `badRequest` for an empty
+    ///   `clientID`, `redirectURI` or `codeChallenge`. An empty option is left
+    ///   out, like one not given.
+    public func authorizationURL(
+        clientID: String, redirectURI: String, codeChallenge: String,
+        scope: String? = nil, state: String? = nil, resource: String? = nil,
+    ) throws -> URL {
+        let required = [("client_id", clientID), ("redirect_uri", redirectURI), ("code_challenge", codeChallenge)]
+        if let empty = required.first(where: { $0.1.isEmpty }) {
+            throw InternetDataError(kind: .badRequest, message: "\(empty.0) must not be empty")
+        }
+        var params = [("response_type", "code")] + required + [("code_challenge_method", Self.pkceMethod)]
+        for (name, value) in [("scope", scope), ("state", state), ("resource", resource)] {
+            if let value, !value.isEmpty {
+                params.append((name, value))
+            }
+        }
+        let query = params.map { "\($0)=\(percentEncoded($1))" }.joined(separator: "&")
+        guard let url = URL(string: "\(baseURL.absoluteString)/oauth/authorize?\(query)") else {
+            throw InternetDataError(kind: .badRequest, message: "the base URL cannot carry an authorization URL")
+        }
+        return url
+    }
+
+    /// Exchange the `code` a sign-in's redirect brought back for tokens, once.
+    ///
+    /// `codeVerifier` is the ``Pkce/verifier`` whose challenge went into the
+    /// authorization URL, and `redirectURI` that URL's, exactly. Never retried:
+    /// the server spends the code on first read, before it checks the verifier,
+    /// so a retry could only be refused.
+    public func exchangeAuthorizationCode(
+        _ code: String, clientID: String, codeVerifier: String, redirectURI: String, timeout: Duration? = nil,
+    ) async throws -> TokenResponse {
+        try await exchange(
+            [
+                ("grant_type", "authorization_code"), ("code", code), ("redirect_uri", redirectURI),
+                ("client_id", clientID), ("code_verifier", codeVerifier),
+            ],
+            timeout: timeout,
+        )
+    }
+
+    /// A fresh PKCE pair for one sign-in: 32 bytes from the system's secure
+    /// random source as the verifier, with its challenge.
+    public func createPkce() -> Pkce {
+        var generator = SystemRandomNumberGenerator()
+        let bytes = (0..<32).map { _ in UInt8.random(in: .min ... .max, using: &generator) }
+        let verifier = base64URL(bytes)
+        return Pkce(verifier: verifier, challenge: pkceChallenge(verifier), method: Self.pkceMethod)
+    }
+
+    /// The `S256` challenge for a PKCE verifier: its SHA-256, as unpadded
+    /// base64url.
+    public func pkceChallenge(_ verifier: String) -> String {
+        base64URL(Array(SHA256.hash(data: Array(verifier.utf8))))
+    }
+
     /// Wait for the person to approve a device sign-in, and answer its tokens.
     ///
     /// Waits ``DeviceAuthorization/interval`` seconds before every poll, the first
@@ -221,6 +299,23 @@ public struct OauthAPI: Sendable {
         }
         return (status, try await ArraySlice(collecting: responseBody ?? HTTPBody(), upTo: Self.maxBodyBytes))
     }
+}
+
+/// One sign-in's PKCE pair, from ``OauthAPI/createPkce()``: ``challenge`` goes
+/// into the authorization URL, ``verifier`` only to the exchange. Its
+/// description leaves the verifier out.
+public struct Pkce: Sendable, Hashable {
+    /// 32 random bytes as 43 characters of unpadded base64url.
+    public let verifier: String
+    /// The verifier's SHA-256, as unpadded base64url.
+    public let challenge: String
+    /// `S256`, the only method the server accepts.
+    public let method: String
+}
+
+extension Pkce: CustomStringConvertible, CustomDebugStringConvertible {
+    public var description: String { "Pkce(challenge: \(challenge), method: \(method))" }
+    public var debugDescription: String { description }
 }
 
 /// The authorization server refused an OAuth request: an answer in the 4xx range
@@ -392,6 +487,18 @@ public struct TokenResponse: Sendable, Hashable, Codable {
 private let formSafe = CharacterSet(
     charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~",
 )
+
+private func percentEncoded(_ value: String) -> String {
+    value.addingPercentEncoding(withAllowedCharacters: formSafe) ?? value
+}
+
+/// Unpadded base64url (RFC 4648 section 5).
+private func base64URL(_ bytes: [UInt8]) -> String {
+    Data(bytes).base64EncodedString()
+        .replacingOccurrences(of: "+", with: "-")
+        .replacingOccurrences(of: "/", with: "_")
+        .replacingOccurrences(of: "=", with: "")
+}
 
 private func formEncoded(_ fields: [(String, String)]) -> [UInt8] {
     let pairs = fields.map { name, value in

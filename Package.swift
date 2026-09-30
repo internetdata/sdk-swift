@@ -19,6 +19,10 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-http-types", from: "1.4.0"),
         .package(url: "https://github.com/swift-server/swift-openapi-async-http-client", from: "1.5.0"),
         .package(url: "https://github.com/swift-server/async-http-client", from: "1.36.1"),
+        // SHA-256 for the PKCE challenge, which Foundation lacks on Linux.
+        // Already in the graph via async-http-client, whose dependencies take
+        // exactly this range.
+        .package(url: "https://github.com/apple/swift-crypto", "3.0.0"..<"5.0.0"),
         // Test only: a pair of local HTTP origins that prove the download
         // endpoint's redirect is never followed. Already in the graph via
         // async-http-client, so declaring it costs a consumer nothing.
@@ -32,6 +36,7 @@ let package = Package(
                 .product(name: "HTTPTypes", package: "swift-http-types"),
                 .product(name: "OpenAPIAsyncHTTPClient", package: "swift-openapi-async-http-client"),
                 .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                .product(name: "Crypto", package: "swift-crypto"),
             ],
             plugins: [
                 .plugin(name: "OpenAPIGenerator", package: "swift-openapi-generator"),
