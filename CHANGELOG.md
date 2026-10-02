@@ -2,6 +2,13 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.5.1 - 2026-10-02
+
+### Fixes
+
+- End the device poll's wait at the code's expiry, and never crash on its interval ([`da9bedc`](https://github.com/internetdata/sdk-swift/commit/da9bedc51118e72fc0b5982128ab51e358d83ece))
+- Refuse an impossible poll timeout before the first wait ([`e3bb746`](https://github.com/internetdata/sdk-swift/commit/e3bb74629e98ddd91aa18cec2b5ed5d438abaf28))
+
 ## 2.5.0 - 2026-09-30
 
 ### Features
