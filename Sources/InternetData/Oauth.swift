@@ -209,8 +209,9 @@ public struct OauthAPI: Sendable {
     /// Wait for the person to approve a device sign-in, and answer its tokens.
     ///
     /// Waits ``DeviceAuthorization/interval`` seconds before every poll, the first
-    /// included, and five more for the rest of the call after each `slow_down`.
-    /// Ends with ``OauthError/accessDenied(_:)`` when the person refuses and with
+    /// included, and five more for the rest of the call after each `slow_down`;
+    /// a wait that would outlast the code ends when it expires instead. Ends with
+    /// ``OauthError/accessDenied(_:)`` when the person refuses and with
     /// ``OauthError/expiredToken(_:)`` when the code expires; one with no status
     /// means the code's lifetime, counted from this call, ran out locally.
     ///
@@ -222,13 +223,17 @@ public struct OauthAPI: Sendable {
     public func pollDeviceToken(
         _ device: DeviceAuthorization, clientID: String, timeout: Duration? = nil,
     ) async throws -> TokenResponse {
-        var interval = device.interval >= 1 ? device.interval : 5
-        let deadline = now() + .seconds(device.expiresIn)
+        // Both are the server's numbers. A `Duration` cannot overflow on a widening,
+        // and a lifetime past `maxTimeout` is one `Task.sleep` cannot count to.
+        var interval = Duration.seconds(device.interval >= 1 ? device.interval : 5)
+        let deadline = now() + min(.seconds(device.expiresIn), maxTimeout)
         while true {
             // Slept AFTER each answer rather than on a ticker: every poll restarts
-            // the server's own five second clock, early or not.
-            try await sleep(.seconds(interval))
-            if now() >= deadline {
+            // the server's own five second clock, early or not. A wait that would
+            // end past the deadline ends at it, and expires with no request sent.
+            let left = max(deadline - now(), .zero)
+            try await sleep(min(interval, left))
+            if interval >= left || now() >= deadline {
                 throw OauthError.expiredToken(
                     OauthErrorResponse(errorCode: "expired_token", errorDescription: nil, status: nil),
                 )
@@ -238,7 +243,7 @@ public struct OauthAPI: Sendable {
             } catch OauthError.rejected(let refusal) where refusal.errorCode == "authorization_pending" {
                 continue
             } catch OauthError.rejected(let refusal) where refusal.errorCode == "slow_down" {
-                interval += 5
+                interval += .seconds(5)
             }
         }
     }

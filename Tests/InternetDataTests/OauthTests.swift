@@ -284,6 +284,25 @@ struct OauthTests {
         }
     }
 
+    // No corpus case: Swift's own ceiling. `Task.sleep` traps on a wait near the
+    // top of `Int64` seconds, so a lifetime past `maxTimeout` is cut to it, and the
+    // interval with it.
+    @Test("an interval and a lifetime at the top of Int sleep only to the longest countable wait")
+    func pollAtTheTopOfInt() async throws {
+        let stub = OauthStub([.init(status: 400, body: #"{"error":"authorization_pending"}"#)])
+        let (oauth, clock) = FakeClock.install(on: Self.client(stub).oauth, stub)
+        let device = DeviceAuthorization(
+            deviceCode: "mo_dc_x", userCode: "BCDF-GHJK", verificationURI: "https://app.example.test/device",
+            expiresIn: .max, interval: .max,
+        )
+
+        let outcome = await settle(stub) { try await oauth.pollDeviceToken(device, clientID: "internetdata-cli") }
+
+        #expect(clock.waits == [Double(Int64.max / 2)])
+        #expect(stub.requests.isEmpty)
+        assertOutcome(outcome, .object(["status": .null]), type: "expiredToken", "top of Int")
+    }
+
     // No corpus case: cancelling has to stop the real wait before the first request.
     @Test("cancelling a poll during its first wait settles at once")
     func cancellingAPollStopsItsWait() async throws {
