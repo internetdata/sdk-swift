@@ -397,7 +397,7 @@ struct OauthTests {
         // and fails the last expectation: a stub with none trips instead of
         // recording, and `requests` would stay empty whatever happened.
         let stub = OauthStub([Self.everyRequiredMember])
-        let (oauth, _) = FakeClock.install(on: Self.client(stub).oauth, stub)
+        let (oauth, clock) = FakeClock.install(on: Self.client(stub).oauth, stub)
 
         let outcome = await settle(stub) { () async throws -> Void in
             switch operation {
@@ -426,6 +426,8 @@ struct OauthTests {
         }
         #expect(error.kind == .badRequest)
         #expect(stub.requests.isEmpty)
+        // The poll refuses it before its first wait, not after.
+        #expect(clock.waits.isEmpty)
     }
 
     @Test("the client's own timeout bounds an OAuth request")

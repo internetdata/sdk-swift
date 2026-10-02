@@ -188,6 +188,20 @@ private func backoff(_ attempt: Int) -> Duration {
 /// are past anything a caller means by a timeout.
 let maxTimeout: Duration = .seconds(Int64.max / 2)
 
+/// Refuses a per-call bound no attempt could meet, as ``InternetDataErrorKind/badRequest``.
+///
+/// Refused rather than trapped: a `precondition` crashes a caller's process over
+/// an argument it could have been handed back. Same shape as a per-call
+/// `concurrency` below 1 in the sibling client.
+func checkTimeout(_ timeout: Duration) throws {
+    guard timeout > .zero, timeout <= maxTimeout else {
+        throw InternetDataError(
+            kind: .badRequest,
+            message: "timeout must be positive and at most \(maxTimeout), got \(timeout)",
+        )
+    }
+}
+
 /// Bounds one attempt with a deadline the library owns.
 ///
 /// Raced rather than left to cancellation: cancelling the attempt releases its
@@ -198,16 +212,7 @@ let maxTimeout: Duration = .seconds(Int64.max / 2)
 func withDeadline<T: Sendable>(
     _ timeout: Duration, _ operation: @escaping @Sendable () async throws -> T,
 ) async throws -> T {
-    // Refused rather than trapped: this is the one place a per-call value is
-    // seen, and a `precondition` here crashes a caller's process over an
-    // argument it could have been handed back. Same shape as a per-call
-    // `concurrency` below 1 in the sibling client.
-    guard timeout > .zero, timeout <= maxTimeout else {
-        throw InternetDataError(
-            kind: .badRequest,
-            message: "timeout must be positive and at most \(maxTimeout), got \(timeout)",
-        )
-    }
+    try checkTimeout(timeout)
     let race = Race<T>()
     let attempt = Task {
         do {

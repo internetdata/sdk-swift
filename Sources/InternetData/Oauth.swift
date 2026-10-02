@@ -223,6 +223,11 @@ public struct OauthAPI: Sendable {
     public func pollDeviceToken(
         _ device: DeviceAuthorization, clientID: String, timeout: Duration? = nil,
     ) async throws -> TokenResponse {
+        // Before the first wait, which a bad value would otherwise sit through,
+        // and which a code expiring first would let it pass unseen.
+        if let timeout {
+            try checkTimeout(timeout)
+        }
         // Both are the server's numbers. A `Duration` cannot overflow on a widening,
         // and a lifetime past `maxTimeout` is one `Task.sleep` cannot count to.
         var interval = Duration.seconds(device.interval >= 1 ? device.interval : 5)
