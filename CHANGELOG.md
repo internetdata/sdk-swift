@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.5.2 - 2026-10-04
+
+### Fixes
+
+- Re-pin the spec to 2026.10.03: metadata needs no license ([`d656bc8`](https://github.com/internetdata/sdk-swift/commit/d656bc802898679488375c8f6123071d6c4dbb27))
+
 ## 2.5.1 - 2026-10-02
 
 ### Fixes
