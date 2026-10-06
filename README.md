@@ -13,7 +13,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/internetdata/sdk-swift.git", from: "2.5.2"),
+    .package(url: "https://github.com/internetdata/sdk-swift.git", from: "2.5.3"),
 ]
 ```
 

@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.5.3 - 2026-10-06
+
+### Fixes
+
+- Wait out a Retry-After past 2^31 - 1 ms on the backoff ([`7ec7c6c`](https://github.com/internetdata/sdk-swift/commit/7ec7c6c66b120a6ae24b85078c736695f128456d))
+
 ## 2.5.2 - 2026-10-04
 
 ### Fixes
