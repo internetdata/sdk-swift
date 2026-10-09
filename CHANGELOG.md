@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.6.0 - 2026-10-09
+
+### Features
+
+- Re-pin the spec to 2026.10.08, adding the Open databases' open flag ([`dd78476`](https://github.com/internetdata/sdk-swift/commit/dd78476d871bfa88f9e0fde55962aca11dbcd456))
+
 ## 2.5.3 - 2026-10-06
 
 ### Fixes
