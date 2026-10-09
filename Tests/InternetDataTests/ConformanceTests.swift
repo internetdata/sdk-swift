@@ -174,6 +174,7 @@ extension ConformanceTests {
             "name": base,
             "summary": "\(base) summary",
             "standing": standing,
+            "open": false,
             "license_type": standing == "licensed" ? "standard" : NSNull(),
             "starts": standing == "licensed" ? "2026-09-04T18:04:26.431Z" : NSNull(),
             "expires": NSNull(),

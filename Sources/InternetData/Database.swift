@@ -315,6 +315,10 @@ public struct Database: Sendable, Hashable {
     public let summary: String
     /// Where your organization stands on this family.
     public let standing: Standing
+    /// An Open database: any organization downloads it, and fetches its
+    /// checksums, with no license, under CC BY-SA 4.0. ``standing`` still
+    /// reports your own license, which grants more where you hold one.
+    public let open: Bool
     /// What your license permits you to do with the data, or `nil` when there is
     /// no license.
     public let licenseType: LicenseType?
@@ -413,6 +417,10 @@ public struct Download: Sendable, Hashable {
     public let outcome: Outcome
     /// The evaluation sample rather than the database itself.
     public let sample: Bool
+    /// Taken under the Open license rather than one of your licenses: an Open
+    /// database downloaded while your organization held no license in term for
+    /// it.
+    public let open: Bool
     /// Object size at redirect time, NOT bytes delivered: the transfer is a
     /// presigned redirect straight to object storage, so the API never observes
     /// how much of it was taken.
@@ -440,6 +448,7 @@ extension Database {
         self.name = wire.name
         self.summary = wire.summary
         self.standing = Standing(wire.standing)
+        self.open = wire.open
         self.licenseType = wire.licenseType.flatMap(LicenseType.init)
         self.starts = wire.starts
         self.expires = wire.expires
@@ -549,6 +558,7 @@ extension Download {
         self.format = wire.format
         self.outcome = Outcome(wire.outcome)
         self.sample = wire.sample
+        self.open = wire.open
         self.bytes = wire.bytes
         self.httpStatus = wire.httpStatus
         self.apikeyId = wire.apikeyId

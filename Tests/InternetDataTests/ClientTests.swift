@@ -147,6 +147,7 @@ struct ClientTests {
                         "name": "Bogon IP",
                         "summary": "Reserved, private or otherwise non-routable IP ranges.",
                         "standing": "licensed",
+                        "open": false,
                         "license_type": "standard",
                         "starts": "2026-09-04T18:04:26.431Z",
                         "expires": NSNull(),
@@ -162,6 +163,7 @@ struct ClientTests {
                         "name": "VPN IP",
                         "summary": "VPN exit addresses.",
                         "standing": "unlicensed",
+                        "open": true,
                         "license_type": NSNull(),
                         "starts": NSNull(),
                         "expires": NSNull(),
@@ -189,6 +191,8 @@ struct ClientTests {
 
         // No license is a null on the wire, not an "unlicensed" license_type.
         #expect(databases[1].standing == .unlicensed)
+        // An Open family downloads whatever its standing, which stays as served.
+        #expect(databases.map(\.open) == [false, true])
         #expect(databases[1].licenseType == nil)
         #expect(databases[1].starts == nil)
     }
@@ -226,6 +230,7 @@ struct ClientTests {
                     "format": "csvgz",
                     "outcome": "ok",
                     "sample": true,
+                    "open": true,
                     "bytes": 264,
                     "http_status": 302,
                     "apikey_id": "86be2651-2c75-4180-8287-25c72a758a72",
@@ -243,6 +248,7 @@ struct ClientTests {
         #expect(attempt.format == "csvgz")
         #expect(attempt.outcome == .ok)
         #expect(attempt.sample)
+        #expect(attempt.open)
         #expect(attempt.bytes == 264)
         #expect(attempt.httpStatus == 302)
         #expect(attempt.apikeyId == "86be2651-2c75-4180-8287-25c72a758a72")
@@ -568,6 +574,7 @@ extension ClientTests {
             "name": base,
             "summary": "\(base) summary",
             "standing": "licensed",
+            "open": false,
             "license_type": "standard",
             "starts": starts,
             "expires": NSNull(),
