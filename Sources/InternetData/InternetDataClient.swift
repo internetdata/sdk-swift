@@ -31,8 +31,10 @@ public struct InternetDataClient: Sendable {
         // `Authorization` header rather than `Bearer ` with nothing behind it -
         // which is what an unset `${{ secrets.X }}` interpolates to, and which
         // the API answers 401 to rather than treating as no credential at all.
+        // Trimmed, so a key read from a file loses its newline, and blanks alone
+        // are no key.
         var middlewares: [any ClientMiddleware] = []
-        if let apiKey = options.apiKey, apiKey.isEmpty == false {
+        if let apiKey = options.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines), apiKey.isEmpty == false {
             middlewares.append(AuthMiddleware(apiKey: apiKey))
         }
         middlewares.append(ErrorMiddleware())

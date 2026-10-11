@@ -123,6 +123,12 @@ struct AuthMiddleware: ClientMiddleware {
         operationID: String,
         next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?),
     ) async throws -> (HTTPResponse, HTTPBody?) {
+        // HTTPTypes turns a control character into a space, so such a key went
+        // out as another key. Refused before anything is sent, because the
+        // client's initializer cannot throw.
+        if apiKey.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) {
+            throw InternetDataError(kind: .badRequest, message: "the API key holds a control character")
+        }
         var request = request
         request.headerFields[.authorization] = "Bearer \(apiKey)"
         return try await next(request, body, baseURL)

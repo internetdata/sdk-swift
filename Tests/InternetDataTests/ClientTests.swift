@@ -40,6 +40,88 @@ struct ClientTests {
         }
     }
 
+    // A key of blanks alone is no key, and the blanks around a key, a file's
+    // newline among them, are no part of it.
+    @Test("a blank key sends no authorization, and a key is sent trimmed")
+    func blankKeySendsNoAuthorization() async throws {
+        for apiKey in ["   ", "\t", " \r\n "] {
+            let stub = StubTransport([StubTransport.listPath: .json(["databases": []])])
+            _ = try await client(stub, apiKey: apiKey).database.list()
+            await #expect(stub.authorizations == [nil], "apiKey \(apiKey.debugDescription)")
+        }
+        let stub = StubTransport([StubTransport.listPath: .json(["databases": []])])
+        _ = try await client(stub, apiKey: " sk-test\r\n").database.list()
+        await #expect(stub.authorizations == ["Bearer sk-test"])
+    }
+
+    // HTTPTypes turned a control character into a space, so `k\u{01}ey` went out
+    // as `Bearer k ey`, another key altogether.
+    @Test("a key holding a control character is refused before anything is sent")
+    func controlCharacterKeyIsRefused() async throws {
+        for apiKey in ["sk\u{01}test", "sk-test\u{7F}", "sk\ttest", "sk-test\r\nX-Injected: 1"] {
+            let stub = StubTransport([StubTransport.listPath: .json(["databases": []])])
+            let failure = await #expect(throws: InternetDataError.self) {
+                try await client(stub, apiKey: apiKey, retries: 2).database.list()
+            }
+            #expect(try #require(failure).kind == .badRequest, "apiKey \(apiKey.debugDescription)")
+            await #expect(stub.callCount == 0, "apiKey \(apiKey.debugDescription)")
+        }
+    }
+
+    // A proxy's page, a cut-off or empty body, or an answer without the member
+    // it requires is the server's fault: it came back `network` with no status.
+    @Test("a 2xx the call cannot read is a retried server error carrying its status")
+    func unreadableAnswerIsRetriedServerError() async throws {
+        let bodies = ["<html>gateway</html>", "{\"databases\":", "", "null", "[]", "{}", "{\"databases\":{}}"]
+        for body in bodies {
+            let stub = StubTransport([StubTransport.listPath: .init(body: Data(body.utf8))])
+            let failure = await #expect(throws: InternetDataError.self) {
+                try await client(stub, retries: 2).database.list()
+            }
+            #expect(try #require(failure).kind == .serverError, "body \(body.debugDescription)")
+            #expect(try #require(failure).status == 200, "body \(body.debugDescription)")
+            await #expect(stub.callCount == 3, "body \(body.debugDescription)")
+        }
+    }
+
+    @Test("an empty result code gives way to the status")
+    func emptyResultCodeGivesWay() async throws {
+        let stub = StubTransport([StubTransport.listPath: .json(["rc": ""], status: 403)])
+        let failure = await #expect(throws: InternetDataError.self) {
+            try await client(stub).database.list()
+        }
+        #expect(try #require(failure).message == "request failed with status 403")
+    }
+
+    // Digits, or one of RFC 9110's three date forms in GMT. `Int` took a sign, and
+    // `DateFormatter` read one form only, in any zone it could name.
+    @Test("a Retry-After is digits or an HTTP date in GMT, and nothing else")
+    func retryAfterIsDigitsOrAnHttpDate() throws {
+        let at = Date().addingTimeInterval(60)
+        func format(_ pattern: String) -> String {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone(identifier: "GMT")
+            formatter.dateFormat = pattern
+            return formatter.string(from: at)
+        }
+        let imf = format("EEE, dd MMM yyyy HH:mm:ss")
+        for value in ["0", "120", " 7 ", "\(imf) GMT", format("EEEE, dd-MMM-yy HH:mm:ss 'GMT'"),
+                      format("EEE MMM d HH:mm:ss yyyy").replacingOccurrences(of: #"^(\w{3} \w{3}) (\d) "#,
+                                                                              with: "$1  $2 ", options: .regularExpression)] {
+            #expect(parseRetryAfter(value) != nil, "\(value.debugDescription) is a wait")
+        }
+        let next = Calendar(identifier: .gregorian).component(.year, from: at) + 1
+        for value in ["\(imf) +0000", "\(imf) +0500", "\(imf) PST", "\(imf) gmt", "Xyz, 01 Jan \(next) 08:49:37 GMT",
+                      "Tue, 31 Nov \(next) 08:49:37 GMT", "Fri, 01 Jan \(next) 25:00:00 GMT", "2026-10-11T06:00:00Z",
+                      "1.5", "+1", "-1", "0x10", "1_0", "1e3", "tomorrow", ""] {
+            #expect(parseRetryAfter(value) == nil, "\(value.debugDescription) is no wait")
+        }
+        let wait = try #require(parseRetryAfter("\(imf) GMT"))
+        #expect(wait >= .seconds(55) && wait <= .seconds(61))
+        #expect(parseRetryAfter("Sun, 06 Nov 1994 08:49:37 GMT") == .zero)
+    }
+
     @Test("retries are configurable, and a client error still is not retried")
     func retriesAreConfigurable() async throws {
         let failing = StubTransport([
