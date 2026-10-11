@@ -110,15 +110,19 @@ function assert_range_admits_latest() {
 # The suite is worthless if SwiftPM built a local checkout instead, and that
 # failure is silent: every test passes, against the wrong code. A path
 # dependency is never pinned, so an entry naming the remote at a published
-# version is the proof that the resolver went to the network.
+# version is the proof that the resolver went to the network, and the pin's
+# commit has to be the one the remote tags as that version: Package.resolved
+# records a mirror in SwiftPM's configuration under the original URL, with
+# whatever commit the mirror tagged.
 function assert_resolved_from_git() {
-    local versions="$1" resolved
+    local versions="$1" pin resolved revision tagged
     # Whitespace-stripped and matched as one string rather than parsed: the
     # official Swift image carries no python, jq or any other JSON reader, and
     # SwiftPM writes the pins with its keys in a fixed order.
-    resolved="$(tr -d ' \n' < Package.resolved \
-        | grep -o "\"location\":\"${PACKAGE_URL}\",\"state\":{[^}]*}" \
-        | sed -n 's/.*"version":"\([^"]*\)".*/\1/p' || true)"
+    pin="$(tr -d ' \n' < Package.resolved \
+        | grep -o "\"location\":\"${PACKAGE_URL}\",\"state\":{[^}]*}" || true)"
+    resolved="$(sed -n 's/.*"version":"\([^"]*\)".*/\1/p' <<< "$pin")"
+    revision="$(sed -n 's/.*"revision":"\([^"]*\)".*/\1/p' <<< "$pin")"
     if [ -z "$resolved" ] ; then
         echo "FAILED: Package.resolved pins no version of ${PACKAGE_URL}," \
             "so the tests would run against something other than the release" >&2
@@ -128,7 +132,16 @@ function assert_resolved_from_git() {
         echo "FAILED: resolved ${resolved}, which is not one of ${versions//$'\n'/, }" >&2
         exit 1
     fi
-    echo "==> resolved sdk-swift ${resolved} from ${PACKAGE_URL}"
+    # Every line naming the tag, with or without its `v`: an annotated tag's own
+    # line names the tag object and its peeled `^{}` line the commit.
+    tagged="$(git ls-remote --tags "$PACKAGE_URL" 2>/dev/null \
+        | grep -E "refs/tags/v?${resolved//./\\.}(\^\{\})?$" | cut -f1 || true)"
+    if [ -z "$revision" ] || ! grep -qx "$revision" <<< "$tagged" ; then
+        echo "FAILED: resolved ${resolved} at ${revision:-no commit}, which is not the commit" \
+            "${PACKAGE_URL} tags as ${resolved}" >&2
+        exit 1
+    fi
+    echo "==> resolved sdk-swift ${resolved} from ${PACKAGE_URL} at ${revision}, the commit it tags"
 }
 
 # Names only, never values: these logs are public.
