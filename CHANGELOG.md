@@ -2,6 +2,13 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.6.2 - 2026-10-11
+
+### Fixes
+
+- Read Retry-After strictly, and an unreadable 2xx as a retried server error ([`752d103`](https://github.com/internetdata/sdk-swift/commit/752d103f930b6ec02cb69a36ab1479ef8172a786))
+- Trim the API key, and refuse one holding a control character ([`2166dcc`](https://github.com/internetdata/sdk-swift/commit/2166dcc629796e3ec3973fabd708b8983873c90a))
+
 ## 2.6.1 - 2026-10-10
 
 ### Fixes
