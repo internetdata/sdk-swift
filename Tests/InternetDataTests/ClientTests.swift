@@ -273,7 +273,7 @@ struct ClientTests {
 
         // No license is a null on the wire, not an "unlicensed" license_type.
         #expect(databases[1].standing == .unlicensed)
-        // An Open family downloads whatever its standing, which stays as served.
+        // An Open family's standing stays as served, never derived from `open`.
         #expect(databases.map(\.open) == [false, true])
         #expect(databases[1].licenseType == nil)
         #expect(databases[1].starts == nil)
