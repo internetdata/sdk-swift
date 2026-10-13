@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.6.3 - 2026-10-13
+
+### Fixes
+
+- Re-pin the spec to 2026.10.13: Open databases come with a license ([`abcc7c3`](https://github.com/internetdata/sdk-swift/commit/abcc7c328a2cf26bcb21e404d4dddc678174ff76))
+
 ## 2.6.2 - 2026-10-11
 
 ### Fixes
