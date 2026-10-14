@@ -30,7 +30,7 @@ Requires Swift 6.1 or newer, and macOS 13, iOS 16, tvOS 16, watchOS 9 or visionO
 
 ## Usage
 
-Every database published today needs an API key carrying the `db.download` scope. Access is granted by contract, one family at a time, so there is no self-serve signup: [talk to us](https://internetdata.io) and we will issue one. `apiKey` is nevertheless optional - a client built without one sends no `Authorization` header at all, ready for a database served without a license.
+Every database published today needs an API key carrying the `db.download` scope; create one in the [console](https://app.internetdata.io). The Open databases are licensed to every organization from the start and are free under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), and `list()` marks them `open`. The rest are licensed by contract, one family at a time: if your organization doesn't have a license yet, [request an evaluation](https://internetdata.io/contact?purpose=evaluation&subject=Evaluation+license). `apiKey` is nevertheless optional - a client built without one sends no `Authorization` header at all, ready for a database served without a license.
 
 ```swift
 import InternetData
