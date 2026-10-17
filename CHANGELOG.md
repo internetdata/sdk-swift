@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.7.0 - 2026-10-17
+
+### Features
+
+- Re-pin the spec to 2026.10.16: dynamic client registration ([`c91a99f`](https://github.com/internetdata/sdk-swift/commit/c91a99fdb4ddf69c51f5c9610fee82673b1352de))
+
 ## 2.6.4 - 2026-10-16
 
 ### Fixes
