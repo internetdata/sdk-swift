@@ -404,6 +404,7 @@ public struct OauthMetadata: Sendable, Hashable, Codable {
     public let tokenEndpointAuthMethodsSupported: [String]?
     public let authorizationResponseIssParameterSupported: Bool?
     public let clientIdMetadataDocumentSupported: Bool?
+    public let registrationEndpoint: String?
     public let serviceDocumentation: String?
 
     enum CodingKeys: String, CodingKey {
@@ -419,6 +420,7 @@ public struct OauthMetadata: Sendable, Hashable, Codable {
         case tokenEndpointAuthMethodsSupported = "token_endpoint_auth_methods_supported"
         case authorizationResponseIssParameterSupported = "authorization_response_iss_parameter_supported"
         case clientIdMetadataDocumentSupported = "client_id_metadata_document_supported"
+        case registrationEndpoint = "registration_endpoint"
         case serviceDocumentation = "service_documentation"
     }
 }
