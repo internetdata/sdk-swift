@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.8.0 - 2026-10-18
+
+### Features
+
+- Add oauth.register, for RFC 7591 dynamic client registration ([`5986a54`](https://github.com/internetdata/sdk-swift/commit/5986a548158a0c548662862093adf92d3b44ffc3))
+
 ## 2.7.0 - 2026-10-17
 
 ### Features
