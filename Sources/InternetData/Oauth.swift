@@ -122,6 +122,42 @@ public struct OauthAPI: Sendable {
         )
     }
 
+    /// Register a client for the authorization code flow, for an app that cannot
+    /// serve a Client ID Metadata Document, and get its ``ClientRegistration/clientID``.
+    ///
+    /// Each redirect URI must be https on a public host name, or http on a
+    /// loopback address, which then matches on any port; the server refuses any
+    /// other with ``OauthError/rejected(_:)`` coded `invalid_redirect_uri`.
+    /// Nothing is kept until a person approves the client, so registering again
+    /// costs nothing, and a transient failure is retried like any other call. No
+    /// URI at all, or an empty one, throws ``InternetDataError`` `.badRequest`
+    /// before anything is sent.
+    ///
+    /// - Parameters:
+    ///   - clientName: Shown to the person as the client's own claim, marked
+    ///     unverified, beside where its redirect goes. Left out when empty.
+    ///   - timeout: Overrides the client's timeout for each attempt of this call.
+    public func register(
+        redirectURIs: [String], clientName: String? = nil, timeout: Duration? = nil,
+    ) async throws -> ClientRegistration {
+        guard !redirectURIs.isEmpty, !redirectURIs.contains(where: \.isEmpty) else {
+            throw InternetDataError(
+                kind: .badRequest, message: "redirectURIs must list at least one URI, and none empty",
+            )
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .withoutEscapingSlashes
+        let request = RegistrationRequest(
+            redirectURIs: redirectURIs, clientName: clientName.flatMap { $0.isEmpty ? nil : $0 },
+        )
+        let json = Array(try encoder.encode(request))
+        return try await withRetry(retries) {
+            try await withDeadline(timeout ?? self.timeout) {
+                try await send(.post, "/oauth/register", form: nil, json: json)
+            }
+        }
+    }
+
     /// Revoke a token. A refresh token ends the whole sign-in and every token it
     /// issued, which is how a machine signs out.
     ///
@@ -262,9 +298,9 @@ public struct OauthAPI: Sendable {
     }
 
     private func send<T: Decodable & Sendable>(
-        _ method: HTTPRequest.Method, _ path: String, form: [(String, String)]?,
+        _ method: HTTPRequest.Method, _ path: String, form: [(String, String)]?, json: [UInt8]? = nil,
     ) async throws -> T {
-        let (status, body) = try await respond(method, path, form: form, readBody: true)
+        let (status, body) = try await respond(method, path, form: form, json: json, readBody: true)
         do {
             return try JSONDecoder().decode(T.self, from: Data(body))
         } catch {
@@ -279,7 +315,8 @@ public struct OauthAPI: Sendable {
     }
 
     private func respond(
-        _ method: HTTPRequest.Method, _ path: String, form: [(String, String)]?, readBody: Bool,
+        _ method: HTTPRequest.Method, _ path: String, form: [(String, String)]?, json: [UInt8]? = nil,
+        readBody: Bool,
     ) async throws -> (status: Int, body: ArraySlice<UInt8>) {
         var fields = HTTPFields()
         fields[.accept] = "application/json"
@@ -287,6 +324,10 @@ public struct OauthAPI: Sendable {
         if let form {
             fields[.contentType] = "application/x-www-form-urlencoded"
             body = HTTPBody(formEncoded(form))
+        }
+        if let json {
+            fields[.contentType] = "application/json"
+            body = HTTPBody(json)
         }
         let (response, responseBody) = try await transport.send(
             HTTPRequest(method: method, scheme: nil, authority: nil, path: path, headerFields: fields),
@@ -388,6 +429,47 @@ extension OauthError: CustomStringConvertible {
 
 extension OauthError: LocalizedError {
     public var errorDescription: String? { description }
+}
+
+/// A registered client, from ``OauthAPI/register(redirectURIs:clientName:timeout:)``:
+/// public and with no secret, it proves each sign-in with PKCE.
+public struct ClientRegistration: Sendable, Hashable, Codable {
+    /// The client ID for the authorization code flow.
+    public let clientID: String
+    /// When it was issued, in Unix seconds.
+    public let clientIDIssuedAt: Int64
+    /// The name the person will see, a placeholder when none was given or none
+    /// can be shown.
+    public let clientName: String
+    public let redirectURIs: [String]
+    public let grantTypes: [String]?
+    public let responseTypes: [String]?
+    /// Always `none`.
+    public let tokenEndpointAuthMethod: String
+    /// The most this client may be granted.
+    public let scope: String?
+
+    enum CodingKeys: String, CodingKey {
+        case clientID = "client_id"
+        case clientIDIssuedAt = "client_id_issued_at"
+        case clientName = "client_name"
+        case redirectURIs = "redirect_uris"
+        case grantTypes = "grant_types"
+        case responseTypes = "response_types"
+        case tokenEndpointAuthMethod = "token_endpoint_auth_method"
+        case scope
+    }
+}
+
+/// `register`'s body: the redirect URIs in the order given, then the name.
+private struct RegistrationRequest: Encodable {
+    let redirectURIs: [String]
+    let clientName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case redirectURIs = "redirect_uris"
+        case clientName = "client_name"
+    }
 }
 
 /// The authorization server's metadata document (RFC 8414).

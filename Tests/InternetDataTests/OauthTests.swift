@@ -25,7 +25,9 @@ struct OauthTests {
         "token_endpoint":"https://api.example.test/oauth/token",
         "device_code":"mo_dc_x","user_code":"BCDF-GHJK",
         "verification_uri":"https://app.example.test/device","expires_in":900,"interval":1,
-        "access_token":"mo_at_x","token_type":"Bearer"}
+        "access_token":"mo_at_x","token_type":"Bearer","client_id":"dcr_x",
+        "client_id_issued_at":1792304178,"client_name":"Example CLI",
+        "redirect_uris":["http://127.0.0.1/cb"],"token_endpoint_auth_method":"none"}
         """)
 
     @Test("no OAuth request carries the API key")
@@ -49,6 +51,9 @@ struct OauthTests {
                 "mo_ac_x", clientID: id, codeVerifier: "verifier", redirectURI: "http://127.0.0.1:8765/cb",
             )
         }
+        _ = try await succeed(stub) {
+            try await oauth.register(redirectURIs: ["http://127.0.0.1/cb"], clientName: "Example CLI")
+        }
         let url = try oauth.authorizationURL(
             clientID: id, redirectURI: "http://127.0.0.1:8765/cb", codeChallenge: "c",
             scope: "apikeys.use", state: "s", resource: "https://x.test/",
@@ -56,7 +61,7 @@ struct OauthTests {
         #expect(!url.absoluteString.contains(key), "the key is in the authorization URL")
 
         let sent = stub.requests
-        #expect(sent.count == 7)
+        #expect(sent.count == 8)
         let headers = Set((rule["forbiddenHeaders"]?.arrayValue ?? []).compactMap(\.stringValue))
         let query = Set((rule["forbiddenQuery"]?.arrayValue ?? []).compactMap(\.stringValue))
         #expect(!headers.isEmpty && !query.isEmpty)
@@ -206,6 +211,103 @@ struct OauthTests {
         }
         #expect(error.kind == .serverError)
         #expect(error.status == 200)
+    }
+
+    @Test("register posts exactly its JSON body, and refuses an empty URI unsent")
+    func registerBodies() async throws {
+        let register = try #require(Self.oauth["register"])
+        let contentType = try #require(register["contentType"]?.stringValue)
+        let path = try #require(register["endpoint"]?["path"]?.stringValue)
+        for testCase in register["bodies"]?["cases"]?.arrayValue ?? [] {
+            let name = testCase["name"]?.stringValue ?? "?"
+            let stub = OauthStub([Self.everyRequiredMember])
+            let oauth = Self.client(stub).oauth
+            let uris = (testCase["args"]?["redirectUris"]?.arrayValue ?? []).compactMap(\.stringValue)
+            let clientName = testCase["args"]?["clientName"]?.stringValue
+
+            _ = try await succeed(stub) { try await oauth.register(redirectURIs: uris, clientName: clientName) }
+
+            let sent = stub.requests
+            #expect(sent.count == 1, "\(name)")
+            #expect(sent.first?.path == path, "\(name)")
+            #expect(sent.first?.headers[.contentType]?.hasPrefix(contentType) == true, "\(name)")
+            let body = try JSONDecoder().decode(JSONValue.self, from: Data((sent.first?.body ?? "").utf8))
+            #expect(body == testCase["body"], "\(name): sent \(sent.first?.body ?? "")")
+        }
+        for testCase in register["refusals"]?["cases"]?.arrayValue ?? [] {
+            let stub = OauthStub([Self.everyRequiredMember])
+            let oauth = Self.client(stub).oauth
+            let uris = (testCase["args"]?["redirectUris"]?.arrayValue ?? []).compactMap(\.stringValue)
+
+            let outcome = await settle(stub) { try await oauth.register(redirectURIs: uris) }
+
+            guard case .failure(let error as InternetDataError) = outcome, error.kind == .badRequest else {
+                Issue.record("\(testCase["name"]?.stringValue ?? "?"): \(outcome)")
+                continue
+            }
+            #expect(stub.requests.isEmpty)
+        }
+    }
+
+    @Test("register decodes on presence, and anything unreadable is a server error")
+    func registerAnswers() async throws {
+        let register = try #require(Self.oauth["register"])
+        let uris = ["http://127.0.0.1/cb"]
+        for testCase in register["responses"]?["cases"]?.arrayValue ?? [] {
+            let label = testCase["name"]?.stringValue ?? "?"
+            let stub = OauthStub([.init(testCase)])
+            let oauth = Self.client(stub).oauth
+
+            let fields = try await succeed(stub) { try await oauth.register(redirectURIs: uris).wireFields }
+
+            for (member, value) in testCase["expect"]?["present"]?.objectValue ?? [:] {
+                #expect(fields[member] == value, "\(label): \(member)")
+            }
+            for member in (testCase["expect"]?["absent"]?.arrayValue ?? []).compactMap(\.stringValue) {
+                #expect(fields[member] == nil, "\(label): \(member) must be absent")
+            }
+        }
+        for testCase in register["unreadable"]?["cases"]?.arrayValue ?? [] {
+            let label = testCase["name"]?.stringValue ?? "?"
+            let stub = OauthStub([.init(testCase)])
+            let oauth = Self.client(stub, retries: 0).oauth
+
+            let outcome = await settle(stub) { try await oauth.register(redirectURIs: uris) }
+
+            guard case .failure(let error as InternetDataError) = outcome else {
+                Issue.record("\(label): \(outcome)")
+                continue
+            }
+            #expect(error.kind == .serverError, "\(label)")
+            #expect(error.status == testCase["status"]?.intValue, "\(label)")
+            #expect(stub.requests.count == 1, "\(label)")
+        }
+        for testCase in register["errors"]?.arrayValue ?? [] {
+            let stub = OauthStub([.init(testCase)])
+            let oauth = Self.client(stub).oauth
+
+            let outcome = await settle(stub) { try await oauth.register(redirectURIs: uris) }
+
+            let expect = try #require(testCase["expect"])
+            assertOutcome(outcome, expect, type: expect["type"]?.stringValue, testCase["name"]?.stringValue)
+        }
+        for testCase in register["retries"]?.arrayValue ?? [] {
+            let name = testCase["name"]?.stringValue ?? "?"
+            let stub = OauthStub((testCase["responses"]?.arrayValue ?? []).map(OauthStub.Reply.init))
+            let oauth = Self.client(stub).oauth
+
+            let outcome = await settle(stub) { try await oauth.register(redirectURIs: uris) }
+
+            let expect = try #require(testCase["expect"])
+            #expect(stub.requests.count == expect["requests"]?.intValue, "\(name): requests sent")
+            guard expect["outcome"]?.stringValue != "ok" else {
+                if case .failure(let error) = outcome {
+                    Issue.record("\(name): failed with \(error)")
+                }
+                continue
+            }
+            assertOutcome(outcome, expect, type: expect["outcome"]?.stringValue, name)
+        }
     }
 
     @Test("a failed answer is an OAuth refusal only when it is one")
@@ -858,6 +960,20 @@ extension DeviceAuthorization {
             "interval": .int(interval),
         ]
         verificationURIComplete.map { fields["verification_uri_complete"] = .string($0) }
+        return fields
+    }
+}
+
+extension ClientRegistration {
+    var wireFields: [String: JSONValue] {
+        var fields: [String: JSONValue] = [
+            "client_id": .string(clientID), "client_id_issued_at": .int(Int(clientIDIssuedAt)),
+            "client_name": .string(clientName), "redirect_uris": .array(redirectURIs.map(JSONValue.string)),
+            "token_endpoint_auth_method": .string(tokenEndpointAuthMethod),
+        ]
+        grantTypes.map { fields["grant_types"] = .array($0.map(JSONValue.string)) }
+        responseTypes.map { fields["response_types"] = .array($0.map(JSONValue.string)) }
+        scope.map { fields["scope"] = .string($0) }
         return fields
     }
 }
