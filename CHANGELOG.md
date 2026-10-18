@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.8.1 - 2026-10-18
+
+### Fixes
+
+- Re-pin the spec to 2026.10.18: client_id_issued_at is int64 ([`9bd08ee`](https://github.com/internetdata/sdk-swift/commit/9bd08eea03de1741d48588ca5190ba73607c3fe6))
+
 ## 2.8.0 - 2026-10-18
 
 ### Features
