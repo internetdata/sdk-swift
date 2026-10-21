@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.8.2 - 2026-10-21
+
+### Fixes
+
+- Re-pin the spec to 2026.10.21: a 403 for a refused address ([`b5cc21d`](https://github.com/internetdata/sdk-swift/commit/b5cc21dd13c9ddd0a3a6aa31ff5c04e44dafe712))
+
 ## 2.8.1 - 2026-10-18
 
 ### Fixes
