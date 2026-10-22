@@ -148,7 +148,7 @@ do {
 
 `kind` is one of `badRequest`, `unauthorized`, `forbidden`, `rateLimited`, `quotaExceeded`, `serverError` or `network`.
 
-Note that `rateLimited` and `quotaExceeded` both arrive as HTTP 429 and are not the same thing. A rate limit is the API protecting itself against a burst, so retrying later works; a spent quota needs your allowance raised or the window to roll over. The library retries rate limits for you, waiting as long as the API asked, but never retries a spent quota.
+`rateLimited` is a 429 that carries `Retry-After`, and the library retries it for you, waiting as long as it says. `quotaExceeded` is a 429 without one, which it never retries. InternetData's database API has no quota, so you won't see `quotaExceeded` from it.
 
 ### What `list` shows you
 
