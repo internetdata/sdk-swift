@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.8.3 - 2026-10-27
+
+### Fixes
+
+- Read dates as RFC 3339 alone, and an empty license type as unreadable ([`31dcba3`](https://github.com/internetdata/sdk-swift/commit/31dcba380f36158d0801f06c0a15d5b8a5a0da51))
+
 ## 2.8.2 - 2026-10-21
 
 ### Fixes
