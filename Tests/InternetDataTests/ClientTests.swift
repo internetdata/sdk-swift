@@ -423,6 +423,94 @@ struct ClientTests {
         #expect(metadata.entries == 4_000_000_000)
     }
 
+    // Linux's ISO 8601 transcoders read 30 February as 2 March, `24:00` as the
+    // next day, `+0500` and `UTC` as zones and `+24:00` as two hours.
+    @Test("a date-time is RFC 3339 and nothing else")
+    func aDateTimeIsRfc3339Alone() throws {
+        func at(_ text: String) -> Double? { RFC3339.dateTime(text)?.timeIntervalSince1970 }
+        #expect(at("2026-10-05T07:49:45Z") == 1_791_186_585)
+        #expect(at("2026-10-05t07:49:45z") == 1_791_186_585)
+        #expect(at("2026-10-05T07:49:45-00:00") == 1_791_186_585)
+        #expect(at("2026-10-05T07:49:45+05:00") == 1_791_168_585)
+        #expect(at("2026-10-05T07:49:45-03:30") == 1_791_199_185)
+        #expect(at("2024-02-29T00:00:00Z") == 1_709_164_800)
+        #expect(at("0000-01-01T00:00:00Z") == -62_167_219_200)
+        #expect(abs(try #require(at("2026-10-05T07:49:45.118Z")) - 1_791_186_585.118) < 1e-6)
+        #expect(abs(try #require(at("2026-10-05T07:49:45.123456789+01:00")) - 1_791_182_985.123_456_789) < 1e-6)
+        for value in [
+            "", "x", "tomorrow", "monday", "1700000000", "1.5", "2026-10-05", "2026-10-05T07:49:45",
+            "2026-02-30T00:00:00Z", "2026-11-31T00:00:00Z", "2025-02-29T00:00:00Z", "2026-13-05T07:49:45Z",
+            "2026-00-05T07:49:45Z", "2026-10-00T07:49:45Z", "2026-10-05T24:00:00Z", "2026-10-05T07:60:00Z",
+            "2026-12-31T23:59:60Z", "2026-10-5T07:49:45Z", " 2026-10-05T07:49:45Z", "2026-10-05T07:49:45Z ",
+            "2026-10-05 07:49:45Z", "2026-10-05T07:49Z", "2026-10-05T07:49:45.Z", "2026-10-05T07:49:45,5Z",
+            "2026-10-05T07:49:45+0500", "2026-10-05T07:49:45+05", "2026-10-05T07:49:45+24:00",
+            "2026-10-05T07:49:45+05:60", "2026-10-05T07:49:45+05:00:30", "2026-10-05T07:49:45UTC",
+            "2026-10-05T07:49:45 PST", "2026-10-05T07:49:45ZZ", "2026-10-05T07:49:45+05:00Z",
+            "2026-W41-1T07:49:45Z", "2026-278T07:49:45Z", "20261005T074945Z", "+20261-10-05T07:49:45Z",
+            "\u{FF12}026-10-05T07:49:45Z",
+        ] {
+            #expect(at(value) == nil, "\(value.debugDescription) is no date-time")
+        }
+    }
+
+    @Test("a full-date is YYYY-MM-DD on a day that exists")
+    func aFullDateIsADayThatExists() {
+        for value in ["2026-10-05", "2024-02-29", "0000-01-01"] {
+            #expect(RFC3339.isFullDate(value), "\(value.debugDescription) is a date")
+        }
+        for value in [
+            "", "x", "tomorrow", "2026-02-30", "2025-02-29", "2026-13-05", "2026-00-05", "2026-10-00",
+            "2026-10-5", "2026-10-05T00:00:00Z", "20261005", "2026-W41-1", "2026-278", " 2026-10-05",
+            "2026-10-05 ", "+2026-10-05", "20261-10-05",
+        ] {
+            #expect(!RFC3339.isFullDate(value), "\(value.debugDescription) is no date")
+        }
+    }
+
+    // Each was handed back as an answer: a date as the platform guessed it,
+    // `updated` as served, and `""` as no license at all.
+    @Test("a date or a license type the spec does not allow is a retried server error")
+    func aValueTheSpecDoesNotAllowIsRetried() async throws {
+        var download: [String: Any] = [
+            "dataset_id": "bogon_asn_v1", "format": "csvgz", "outcome": "ok", "sample": false, "open": false,
+            "bytes": 264, "http_status": 302, "apikey_id": NSNull(), "client_ip": NSNull(), "user_agent": NSNull(),
+        ]
+        var unlicensed = family("bogon_ip", starts: "2026-09-04T18:04:26.431Z")
+        unlicensed["license_type"] = ""
+        var routes: [(String, [String: Any])] = [(StubTransport.listPath, ["databases": [unlicensed]])]
+        for value in ["2026-02-30T00:00:00Z", "2026-10-05T24:00:00Z", "2026-10-05T07:49:45+0500", " 2026-10-05T07:49:45Z"] {
+            routes.append((StubTransport.listPath, ["databases": [family("bogon_ip", starts: value)]]))
+            download["created"] = value
+            routes.append((StubTransport.downloadsPath, ["downloads": [download]]))
+        }
+        for value in ["tomorrow", "2026-02-30", "2026-10-5", "2026-10-05T00:00:00Z"] {
+            routes.append((
+                StubTransport.metadataPath,
+                ["id": "bogon_ip_v1", "updated": value, "entries": 44, "schema": ["csvgz": []], "size": ["csvgz": 760]],
+            ))
+        }
+        for (path, body) in routes {
+            let stub = StubTransport([path: .json(body)])
+            let failure = await #expect(throws: InternetDataError.self) {
+                let database = client(stub, retries: 1).database
+                switch path {
+                case StubTransport.listPath: _ = try await database.list()
+                case StubTransport.downloadsPath: _ = try await database.downloads()
+                default: _ = try await database.metadata(id: "bogon_ip_v1")
+                }
+            }
+            #expect(try #require(failure).kind == .serverError, "\(path) \(body)")
+            #expect(try #require(failure).status == 200, "\(path) \(body)")
+            await #expect(stub.callCount == 2, "\(path) \(body)")
+        }
+
+        let offset = StubTransport([
+            StubTransport.listPath: .json(["databases": [family("bogon_ip", starts: "2026-10-05T07:49:45+05:00")]])
+        ])
+        let databases = try await client(offset).database.list()
+        #expect(databases.first?.starts?.timeIntervalSince1970 == 1_791_168_585)
+    }
+
     @Test("an unusable option is rejected rather than silently clamped")
     func optionsAreValidated() {
         #expect(InternetDataClient.Options(apiKey: "k").retries == 2)

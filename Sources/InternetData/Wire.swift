@@ -34,32 +34,111 @@ enum DefaultTransport {
     )
 }
 
-/// Reads an RFC 3339 timestamp whether or not it carries fractional seconds.
+/// Reads an RFC 3339 `date-time`, and nothing else.
 ///
-/// The runtime ships two transcoders and each rejects what the other accepts:
-/// `.iso8601` refuses `2026-09-04T18:04:26.431Z`, which is what a license term
-/// and a download's `created` are served as, and `.iso8601WithFractionalSeconds`
-/// refuses `2026-09-04T18:04:26Z`, which is what a service with a different JSON
-/// encoder behind the same host would send. Both are valid RFC 3339, so both are
-/// read. Only the decode side has to be forgiving; nothing here ever encodes a
-/// date.
-///
-/// No fixture can catch this. The spec says `format: date-time` and nothing
-/// more, so a stub written from it round-trips through whichever transcoder the
-/// suite happens to pick; the first LIVE call is what fails.
-struct LenientDateTranscoder: DateTranscoder {
+/// The runtime ships two ISO 8601 transcoders and each refuses what the other
+/// accepts: `.iso8601` refuses `2026-09-04T18:04:26.431Z`, which is what a
+/// license term and a download's `created` are served as, and
+/// `.iso8601WithFractionalSeconds` refuses the same without its fraction. Both
+/// also take what RFC 3339 does not: on Linux, 30 February as 2 March, `24:00`
+/// as the next day, `+0500`, `+05` and `UTC` as zones, and `+24:00` as two
+/// hours. A value that is no `date-time` fails the call like any other answer
+/// it cannot read.
+struct RFC3339DateTranscoder: DateTranscoder {
     private let fractional: any DateTranscoder = .iso8601WithFractionalSeconds
-    private let whole: any DateTranscoder = .iso8601
 
     func encode(_ date: Date) throws -> String {
         try fractional.encode(date)
     }
 
     func decode(_ string: String) throws -> Date {
-        guard let date = try? fractional.decode(string) else {
-            return try whole.decode(string)
+        guard let date = RFC3339.dateTime(string) else {
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: [], debugDescription: "\(string.debugDescription) is not an RFC 3339 date-time"),
+            )
         }
         return date
+    }
+}
+
+/// RFC 3339's `date-time` and `full-date`, read by position.
+enum RFC3339 {
+    /// `2026-10-05T07:49:45Z`: any fraction of a second, then `Z` or an offset
+    /// `+hh:mm` or `-hh:mm`, with `T` and `Z` in either case. A leap second is
+    /// refused, since a `Date` cannot hold one.
+    static func dateTime(_ text: String) -> Date? {
+        let c = Array(text.utf8)
+        guard c.count >= 20, let days = fullDate(c[0..<10]), c[10] == ascii("T") || c[10] == ascii("t"),
+            c[13] == ascii(":"), c[16] == ascii(":"),
+            let hour = digits(c[11..<13]), let minute = digits(c[14..<16]), let second = digits(c[17..<19]),
+            hour <= 23, minute <= 59, second <= 59
+        else {
+            return nil
+        }
+        var i = 19
+        var fraction = 0.0
+        if c[i] == ascii(".") {
+            let end = c[(i + 1)...].firstIndex(where: { !isDigit($0) }) ?? c.endIndex
+            guard end > i + 1, let value = Double("0." + String(decoding: c[(i + 1)..<end], as: UTF8.self)) else {
+                return nil
+            }
+            fraction = value
+            i = end
+        }
+        guard i < c.count else {
+            return nil
+        }
+        var offset: Int64 = 0
+        if c[i] == ascii("Z") || c[i] == ascii("z") {
+            guard i + 1 == c.count else {
+                return nil
+            }
+        } else {
+            guard c[i] == ascii("+") || c[i] == ascii("-"), c.count == i + 6, c[i + 3] == ascii(":"),
+                let hours = digits(c[(i + 1)..<(i + 3)]), let minutes = digits(c[(i + 4)..<(i + 6)]),
+                hours <= 23, minutes <= 59
+            else {
+                return nil
+            }
+            offset = (hours * 60 + minutes) * 60 * (c[i] == ascii("-") ? -1 : 1)
+        }
+        // From the reference date rather than 1970, so a fraction lands on the
+        // same `Date` the runtime's own transcoders produced.
+        let seconds = days * 86_400 + hour * 3_600 + minute * 60 + second - offset - 978_307_200
+        return Date(timeIntervalSinceReferenceDate: Double(seconds) + fraction)
+    }
+
+    /// `2026-10-05`, on a day its month has.
+    static func isFullDate(_ text: String) -> Bool {
+        let c = Array(text.utf8)
+        return c.count == 10 && fullDate(c[0..<10]) != nil
+    }
+
+    // Days from 1970-01-01 to a `full-date`.
+    private static func fullDate(_ c: ArraySlice<UInt8>) -> Int64? {
+        let s = c.startIndex
+        guard c.count == 10, c[s + 4] == ascii("-"), c[s + 7] == ascii("-"),
+            let year = digits(c[s..<(s + 4)]), let month = digits(c[(s + 5)..<(s + 7)]),
+            let day = digits(c[(s + 8)..<(s + 10)])
+        else {
+            return nil
+        }
+        return daysSinceEpoch(year: year, month: month, day: day)
+    }
+
+    private static func digits(_ c: ArraySlice<UInt8>) -> Int64? {
+        guard !c.isEmpty, c.allSatisfy(isDigit) else {
+            return nil
+        }
+        return c.reduce(0) { $0 * 10 + Int64($1 - ascii("0")) }
+    }
+
+    private static func isDigit(_ byte: UInt8) -> Bool {
+        byte >= ascii("0") && byte <= ascii("9")
+    }
+
+    private static func ascii(_ scalar: Unicode.Scalar) -> UInt8 {
+        UInt8(ascii: scalar)
     }
 }
 

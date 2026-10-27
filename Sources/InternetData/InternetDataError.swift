@@ -236,26 +236,11 @@ enum HTTPDate {
         let t = Array(time)
         guard let month, t.count == 8, t[2] == UInt8(ascii: ":"), t[5] == UInt8(ascii: ":"),
             let hour = number(t[0..<2]), let minute = number(t[3..<5]), let second = number(t[6..<8]),
-            day >= 1, day <= daysIn(month, of: year), hour <= 23, minute <= 59, second <= 59
+            let days = daysSinceEpoch(year: year, month: month, day: day), hour <= 23, minute <= 59, second <= 59
         else {
             return nil
         }
-        // Days from 1970-01-01, counting years from March so the leap day is last.
-        let y = month <= 2 ? year - 1 : year
-        let era = (y >= 0 ? y : y - 399) / 400
-        let yearOfEra = y - era * 400
-        let dayOfYear = (153 * ((month + 9) % 12) + 2) / 5 + day - 1
-        let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
-        let sinceEpoch = era * 146_097 + dayOfEra - 719_468
-        return sinceEpoch * 86_400 + hour * 3_600 + minute * 60 + second
-    }
-
-    private static func daysIn(_ month: Int64, of year: Int64) -> Int64 {
-        switch month {
-        case 2: year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) ? 29 : 28
-        case 4, 6, 9, 11: 30
-        default: 31
-        }
+        return days * 86_400 + hour * 3_600 + minute * 60 + second
     }
 
     private static func month(_ c: ArraySlice<UInt8>) -> Int64? {
@@ -271,5 +256,28 @@ enum HTTPDate {
 
     private static func text(_ c: ArraySlice<UInt8>) -> String {
         String(decoding: c, as: UTF8.self)
+    }
+}
+
+/// Days from 1970-01-01 to a proleptic Gregorian date, or nil for a day its
+/// month does not have.
+func daysSinceEpoch(year: Int64, month: Int64, day: Int64) -> Int64? {
+    guard month >= 1, month <= 12, day >= 1, day <= daysIn(month, of: year) else {
+        return nil
+    }
+    // Counting years from March, so the leap day is last.
+    let y = month <= 2 ? year - 1 : year
+    let era = (y >= 0 ? y : y - 399) / 400
+    let yearOfEra = y - era * 400
+    let dayOfYear = (153 * ((month + 9) % 12) + 2) / 5 + day - 1
+    let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
+    return era * 146_097 + dayOfEra - 719_468
+}
+
+private func daysIn(_ month: Int64, of year: Int64) -> Int64 {
+    switch month {
+    case 2: year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) ? 29 : 28
+    case 4, 6, 9, 11: 30
+    default: 31
     }
 }

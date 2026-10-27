@@ -46,7 +46,7 @@ public struct InternetDataClient: Sendable {
         let baseURL = withoutTrailingSlashes(options.baseURL)
         let api = Client(
             serverURL: baseURL,
-            configuration: Configuration(dateTranscoder: LenientDateTranscoder()),
+            configuration: Configuration(dateTranscoder: RFC3339DateTranscoder()),
             transport: transport,
             middlewares: middlewares,
         )

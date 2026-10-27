@@ -71,7 +71,7 @@ public struct DatabaseAPI: Sendable {
                 guard case .ok(let ok) = output else {
                     throw unexpected(output)
                 }
-                return DatabaseMetadata(try ok.body.json)
+                return try DatabaseMetadata(ok.body.json)
             }
         }
     }
@@ -376,7 +376,8 @@ public struct DatabaseMetadata: Sendable, Hashable {
     /// How often a new build is published.
     public let updateFreq: String?
     /// The build date, as `YYYY-MM-DD`. A calendar date rather than an instant,
-    /// so it is left as the string the API published.
+    /// so it is left as the string the API published, once it is checked to
+    /// name a day that exists.
     public let updated: String
     /// Row count in the current build.
     public let entries: Int64
@@ -441,13 +442,13 @@ public struct Download: Sendable, Hashable {
 }
 
 extension Database {
-    init(_ wire: Components.Schemas.Database) {
+    init(_ wire: Components.Schemas.Database) throws {
         self.base = wire.base
         self.name = wire.name
         self.summary = wire.summary
         self.standing = Standing(wire.standing)
         self.open = wire.open
-        self.licenseType = wire.licenseType.flatMap(LicenseType.init)
+        self.licenseType = try wire.licenseType.map(LicenseType.init)
         self.starts = wire.starts
         self.expires = wire.expires
         self.renewsAt = wire.renewsAt
@@ -469,20 +470,17 @@ extension Database.Standing {
 }
 
 extension Database.LicenseType {
-    /// `nil` for the generator's `_empty_` case.
-    ///
     /// The spec spells "no license" as `nullable: true` PLUS a `null` member of
-    /// the enum, and the generator turns that member into an empty-string case
+    /// the enum, and the generator turns that member into an `_empty_` case
     /// alongside the three real ones. A `null` on the wire decodes as the absent
-    /// Optional rather than as that case, so `_empty_` should be unreachable;
-    /// mapping it to "no license" rather than trapping keeps a surprise from
-    /// becoming a crash in a caller's process.
-    init?(_ wire: Components.Schemas.Database.LicenseTypePayload) {
+    /// Optional, so `_empty_` is what `""` decodes as: no license type the API
+    /// sends, and refused rather than read as no license at all.
+    init(_ wire: Components.Schemas.Database.LicenseTypePayload) throws {
         switch wire {
         case .evaluation: self = .evaluation
         case .standard: self = .standard
         case .redistribute: self = .redistribute
-        case ._empty_: return nil
+        case ._empty_: throw unreadable("license_type \"\" is no license type")
         }
     }
 }
@@ -518,7 +516,11 @@ extension Components.Parameters.DbFormat {
 }
 
 extension DatabaseMetadata {
-    init(_ wire: Components.Schemas.DatabaseMetadata) {
+    init(_ wire: Components.Schemas.DatabaseMetadata) throws {
+        // `format: date` reaches the generated type as a plain string.
+        guard RFC3339.isFullDate(wire.updated) else {
+            throw unreadable("updated \(wire.updated.debugDescription) is no YYYY-MM-DD date")
+        }
         self.id = wire.id
         self.updateFreq = wire.updateFreq
         self.updated = wire.updated
@@ -581,4 +583,12 @@ extension Download.Outcome {
 
 private func unexpected(_ output: some Sendable) -> InternetDataError {
     InternetDataError(kind: .serverError, message: "unexpected response: \(output)")
+}
+
+// A 200 the generated decoder read, holding a value the spec does not allow:
+// retried like any other answer the call cannot read.
+private func unreadable(_ detail: String) -> InternetDataError {
+    InternetDataError(
+        kind: .serverError, message: "the response was not the answer this call returns: \(detail)", status: 200,
+    )
 }
