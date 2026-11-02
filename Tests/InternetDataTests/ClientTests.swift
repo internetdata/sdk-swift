@@ -216,7 +216,7 @@ struct ClientTests {
         await #expect(throws: CancellationError.self) { try await call.value }
     }
 
-    // The license is held against the FAMILY, and the ids a download takes hang
+    // The license is held against the FAMILY, and the IDs a download takes hang
     // off `versions`. A listing that stopped at the family would leave a caller
     // with nothing to pass to `download`.
     @Test("the catalog carries each family's versions, standing and licence term")

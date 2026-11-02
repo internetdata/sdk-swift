@@ -5,7 +5,7 @@ import Testing
 
 /// The whole API, against staging, through the package a consumer resolves.
 ///
-/// Every id is DISCOVERED from `list` rather than written down here. That keeps
+/// Every ID is DISCOVERED from `list` rather than written down here. That keeps
 /// the suite honest when the CI organization's licenses change, and it keeps the
 /// names of anything private out of a public repository.
 ///
@@ -29,7 +29,7 @@ struct DatabaseTests {
         for database in databases {
             #expect(database.base.isEmpty == false)
             #expect(database.name.isEmpty == false)
-            // A license covers the FAMILY, and these are the ids the download,
+            // A license covers the FAMILY, and these are the IDs the download,
             // checksum and metadata methods take. A listing that stopped at the
             // family would leave a caller with nothing to pass to `download`.
             #expect(database.versions.isEmpty == false, "\(database.base) carries no versions")

@@ -60,7 +60,7 @@ public struct DatabaseAPI: Sendable {
 
     /// What is inside one database: schema, sample rows, row count, sizes.
     ///
-    /// Takes a versioned id from ``Database/versions``, e.g. `bogon_ip_v1`.
+    /// Takes a versioned ID from ``Database/versions``, e.g. `bogon_ip_v1`.
     ///
     /// - Parameter timeout: Overrides the client's ``InternetDataClient/Options/timeout``
     ///   for each attempt of this call.
@@ -295,7 +295,7 @@ private func split(_ url: URL) throws -> (origin: URL, path: String) {
 /// The formats a database is published in.
 ///
 /// Not every database is built in every format: the `_provider` catalogs are
-/// keyed by provider id rather than by IP range, so no MMDB exists for them, and
+/// keyed by provider ID rather than by IP range, so no MMDB exists for them, and
 /// asking for one is a `badRequest` rather than a gap.
 public enum DatabaseFormat: String, Sendable, Hashable, CaseIterable {
     case csvgz
@@ -305,7 +305,7 @@ public enum DatabaseFormat: String, Sendable, Hashable, CaseIterable {
 /// One database FAMILY, with your organization's license beside it.
 ///
 /// A license is held against the family, while a download names a version, so
-/// the ids the download, checksum and metadata methods take come from
+/// the IDs the download, checksum and metadata methods take come from
 /// ``versions`` rather than from ``base``.
 public struct Database: Sendable, Hashable {
     /// The family, e.g. `vpn_ip`. What a license is held against.
@@ -356,7 +356,7 @@ public struct Database: Sendable, Hashable {
 
 /// One published version of a database family.
 public struct DatabaseVersion: Sendable, Hashable {
-    /// The versioned id, e.g. `vpn_ip_v1`. This is what a download takes.
+    /// The versioned ID, e.g. `vpn_ip_v1`. This is what a download takes.
     public let id: String
     public let version: Int
     public let summary: String
@@ -412,7 +412,7 @@ public struct DatabaseChecksums: Sendable, Hashable {
 /// One download ATTEMPT by your organization, refusals included: a denial is
 /// what answers "it stopped working", and its absence answers nothing.
 public struct Download: Sendable, Hashable {
-    /// The versioned database id that was asked for.
+    /// The versioned database ID that was asked for.
     public let datasetId: String
     public let format: String
     public let outcome: Outcome

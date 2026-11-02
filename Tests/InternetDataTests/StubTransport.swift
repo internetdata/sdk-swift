@@ -51,7 +51,7 @@ final class StubTransport: ClientTransport {
         }
 
         // An unrouted path answers the way the API does, so a case can exercise
-        // an unknown id without a second stub.
+        // an unknown ID without a second stub.
         let route = routes[path] ?? .json(["rc": "UNKNOWN_DATASET"], status: 404)
         var fields = HTTPFields()
         fields[.contentType] = "application/json"

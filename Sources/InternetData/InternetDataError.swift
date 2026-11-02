@@ -64,7 +64,7 @@ extension InternetDataError {
     /// The decision is made on the STATUS RANGE, never on an enumerated list of
     /// the statuses this API happens to document today. Mapping 400/401/403/429
     /// and letting the rest fall through to the `serverError` default is the
-    /// easy mistake, and it makes the 404 an unknown database id earns
+    /// easy mistake, and it makes the 404 an unknown database ID earns
     /// retryable.
     ///
     /// - Parameter fallback: What to say when the answer carried no envelope,
