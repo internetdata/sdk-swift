@@ -34,7 +34,7 @@ struct DatabaseTests {
             // family would leave a caller with nothing to pass to `download`.
             #expect(database.versions.isEmpty == false, "\(database.base) carries no versions")
             for version in database.versions {
-                #expect(version.id.isEmpty == false, "\(database.base) has a version with no id")
+                #expect(version.id.isEmpty == false, "\(database.base) has a version with no ID")
                 #expect(version.version > 0)
                 #expect(version.formats.isEmpty == false, "\(version.id) is built in no format")
             }

@@ -45,7 +45,7 @@ for database in try await client.database.list() {
 
 The database calls live under `client.database`, where the sibling VPNDetection client spells the same seven the same way, so a codebase holding both does not have to remember which one is flat.
 
-A license is held against a FAMILY (`vpn_ip`), while a download names a VERSION (`vpn_ip_v1`), so the ids everything below takes come from `versions`. Old versions are frozen rather than migrated, so both stay downloadable.
+A license is held against a FAMILY (`vpn_ip`), while a download names a VERSION (`vpn_ip_v1`), so the IDs everything below takes come from `versions`. Old versions are frozen rather than migrated, so both stay downloadable.
 
 Every setting has a default, and `InternetDataClient.Options` is where you change one:
 
@@ -77,7 +77,7 @@ print(metadata.schema["csvgz"]?.map(\.name) ?? [])
 print(metadata.sample["csvgz"]?.first ?? [:])
 ```
 
-Not every database is built in every format: the `_provider` catalogs are keyed by provider id rather than by IP range, so asking them for an MMDB is a `badRequest` rather than a gap. `DatabaseVersion.formats` says which exist.
+Not every database is built in every format: the `_provider` catalogs are keyed by provider ID rather than by IP range, so asking them for an MMDB is a `badRequest` rather than a gap. `DatabaseVersion.formats` says which exist.
 
 ### Downloading
 
