@@ -2,6 +2,13 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.8.4 - 2026-11-03
+
+### Fixes
+
+- Re-pin the spec to 2026.11.02: ID and IDs in its descriptions ([`f8fb736`](https://github.com/internetdata/sdk-swift/commit/f8fb736029167f94f36d4e10f39b69acbd7211f8))
+- Write ID and IDs in prose, never id or ids ([`dca1e82`](https://github.com/internetdata/sdk-swift/commit/dca1e8223a72c1d29d40adb49921e45a6f799c2b))
+
 ## 2.8.3 - 2026-10-27
 
 ### Fixes
