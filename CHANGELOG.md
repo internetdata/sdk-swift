@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.8.5 - 2026-11-06
+
+### Fixes
+
+- Re-pin the spec to 2026.11.05: the download's build parameter ([`7e7e8bd`](https://github.com/internetdata/sdk-swift/commit/7e7e8bd03591106327e13f829e9c980f98f0e9fa))
+
 ## 2.8.4 - 2026-11-03
 
 ### Fixes
