@@ -13,7 +13,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/internetdata/sdk-swift.git", from: "2.8.5"),
+    .package(url: "https://github.com/internetdata/sdk-swift.git", from: "2.9.0"),
 ]
 ```
 
@@ -114,6 +114,16 @@ let url = try await client.database.downloadURL(id: "vpn_ip_v1", format: .mmdb)
 ```
 
 The link authorizes the START of a transfer, so one already running is not interrupted when it lapses.
+
+### Downloading a named build
+
+Each download call fetches the build that is live unless you name one. A `database.updated` webhook names the build it announces and carries its `sha256`, so a receiver that downloads after the next publish asks for that build to get the file the hash is of:
+
+```swift
+try await client.database.download("vpn_ip_v1", format: .mmdb, build: build, to: destination)
+```
+
+`downloadURL` and `downloadBytes` take `build:` the same way. A build is kept 7 days. Past that the call throws `badRequest` with the message `BUILD_GONE`, and downloading without a build fetches the live one.
 
 ### Verifying a download
 

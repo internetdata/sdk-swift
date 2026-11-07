@@ -136,10 +136,22 @@ public struct DatabaseAPI: Sendable {
     public func downloadURL(
         id: String, format: DatabaseFormat, timeout: Duration? = nil,
     ) async throws -> URL {
-        try await withRetry(retries) {
+        try await downloadURL(id: id, format: format, build: nil, timeout: timeout)
+    }
+
+    /// ``downloadURL(id:format:timeout:)`` for one build of the database, as a
+    /// `database.updated` webhook names it (`20261105.0t53s5`), so the file is
+    /// the one whose `sha256` the webhook carries. `nil` or empty is the build
+    /// that is live. A build is kept 7 days; past that the call throws
+    /// ``InternetDataErrorKind/badRequest`` with the message `BUILD_GONE`.
+    public func downloadURL(
+        id: String, format: DatabaseFormat, build: String?, timeout: Duration? = nil,
+    ) async throws -> URL {
+        let named = build?.isEmpty == false ? build : nil
+        return try await withRetry(retries) {
             try await withDeadline(timeout ?? self.timeout) {
                 let output = try await api.downloadDatabaseV2(
-                    query: .init(id: id, format: .init(format)),
+                    query: .init(id: id, format: .init(format), build: named),
                 )
                 guard case .found(let found) = output else {
                     throw unexpected(output)
@@ -172,6 +184,15 @@ public struct DatabaseAPI: Sendable {
     public func download(
         _ id: String, format: DatabaseFormat, to fileURL: URL,
     ) async throws -> Int64 {
+        try await download(id, format: format, build: nil, to: fileURL)
+    }
+
+    /// The file overload of `download(_:format:to:)` for one build of
+    /// the database, as ``downloadURL(id:format:build:timeout:)`` takes it.
+    @discardableResult
+    public func download(
+        _ id: String, format: DatabaseFormat, build: String?, to fileURL: URL,
+    ) async throws -> Int64 {
         let manager = FileManager.default
         let partial = fileURL.appendingPathExtension("part")
         guard manager.createFile(atPath: partial.path, contents: nil) else {
@@ -181,7 +202,7 @@ public struct DatabaseAPI: Sendable {
         }
         let handle = try FileHandle(forWritingTo: partial)
         do {
-            let written = try await download(id, format: format) { chunk in
+            let written = try await download(id, format: format, build: build) { chunk in
                 try handle.write(contentsOf: chunk)
             }
             try handle.close()
@@ -208,7 +229,16 @@ public struct DatabaseAPI: Sendable {
     public func download(
         _ id: String, format: DatabaseFormat, to sink: DownloadSink,
     ) async throws -> Int64 {
-        let body = try await databaseFile(id, format)
+        try await download(id, format: format, build: nil, to: sink)
+    }
+
+    /// The streaming overload for one build of the database, as
+    /// ``downloadURL(id:format:build:timeout:)`` takes it.
+    @discardableResult
+    public func download(
+        _ id: String, format: DatabaseFormat, build: String?, to sink: DownloadSink,
+    ) async throws -> Int64 {
+        let body = try await databaseFile(id, format, build)
         var written: Int64 = 0
         for try await chunk in body {
             try await sink(chunk)
@@ -227,8 +257,16 @@ public struct DatabaseAPI: Sendable {
     /// `download(_:format:to:)` for anything you have not measured, and
     /// ``metadata(id:timeout:)`` tells you which end you are at before you start.
     public func downloadBytes(_ id: String, format: DatabaseFormat) async throws -> Data {
+        try await downloadBytes(id, format: format, build: nil)
+    }
+
+    /// ``downloadBytes(_:format:)`` for one build of the database, as
+    /// ``downloadURL(id:format:build:timeout:)`` takes it.
+    public func downloadBytes(
+        _ id: String, format: DatabaseFormat, build: String?,
+    ) async throws -> Data {
         var data = Data()
-        _ = try await download(id, format: format) { chunk in
+        _ = try await download(id, format: format, build: build) { chunk in
             data.append(contentsOf: chunk)
         }
         return data
@@ -241,8 +279,10 @@ public struct DatabaseAPI: Sendable {
     //
     // The body is returned unread, so the attempt's deadline ends at the response
     // head and a multi-gigabyte transfer is never racing it.
-    private func databaseFile(_ id: String, _ format: DatabaseFormat) async throws -> HTTPBody {
-        let url = try await downloadURL(id: id, format: format)
+    private func databaseFile(
+        _ id: String, _ format: DatabaseFormat, _ build: String?,
+    ) async throws -> HTTPBody {
+        let url = try await downloadURL(id: id, format: format, build: build)
         let (origin, path) = try split(url)
         return try await withRetry(retries) {
             try await withDeadline(timeout) {

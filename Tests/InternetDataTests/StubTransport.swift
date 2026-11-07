@@ -35,6 +35,11 @@ final class StubTransport: ClientTransport {
         get async { await state.calls }
     }
 
+    /// Every request's path with its query, in arrival order.
+    var targets: [String] {
+        get async { await state.targets }
+    }
+
     /// The `Authorization` header of every request, so "the key was presented"
     /// is asserted at the wire rather than inferred from the option.
     var authorizations: [String?] {
@@ -45,7 +50,9 @@ final class StubTransport: ClientTransport {
         _ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String,
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let path = String((request.path ?? "/").split(separator: "?", maxSplits: 1)[0])
-        await state.record(path, authorization: request.headerFields[.authorization])
+        await state.record(
+            path, target: request.path ?? "/", authorization: request.headerFields[.authorization],
+        )
         if let delay {
             try await Task.sleep(for: delay)
         }
@@ -67,10 +74,12 @@ final class StubTransport: ClientTransport {
 
     private actor State {
         var calls: [String] = []
+        var targets: [String] = []
         var authorizations: [String?] = []
 
-        func record(_ path: String, authorization: String?) {
+        func record(_ path: String, target: String, authorization: String?) {
             calls.append(path)
+            targets.append(target)
             authorizations.append(authorization)
         }
     }

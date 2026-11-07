@@ -608,6 +608,51 @@ struct DownloadRedirectTests {
     }
 }
 
+@Suite("Download a named build")
+struct DownloadBuildTests {
+    @Test("a build goes on the download request, and none without one")
+    func aBuildGoesOnTheDownloadRequestAndNoneWithoutOne() async throws {
+        let stub = StubTransport([
+            StubTransport.downloadPath: .init(
+                status: 302, headers: ["Location": "https://s3.example.test/blob?sig=abc"],
+            ),
+        ])
+        let client = InternetDataClient(options: .init(apiKey: "key", transport: stub))
+        let named = "20261105.0t53s5"
+
+        _ = try await client.database.downloadURL(id: "bogon_ip_v1", format: .csvgz, build: named)
+        _ = try await client.database.downloadURL(
+            id: "bogon_ip_v1", format: .csvgz, build: named, timeout: .seconds(5),
+        )
+        _ = try await client.database.downloadURL(id: "bogon_ip_v1", format: .csvgz, build: "")
+        _ = try await client.database.downloadURL(id: "bogon_ip_v1", format: .csvgz, build: nil)
+        _ = try await client.database.downloadURL(id: "bogon_ip_v1", format: .csvgz)
+
+        let asked = await stub.targets
+        let withBuild = "/api/v2/database/download?id=bogon_ip_v1&format=csvgz&build=\(named)"
+        let live = "/api/v2/database/download?id=bogon_ip_v1&format=csvgz"
+        #expect(asked == [withBuild, withBuild, live, live, live])
+    }
+
+    @Test("a gone build is a bad request, asked once")
+    func aGoneBuildIsABadRequestAskedOnce() async throws {
+        let stub = StubTransport([
+            StubTransport.downloadPath: .json(["rc": "BUILD_GONE"], status: 410),
+        ])
+        let client = InternetDataClient(options: .init(apiKey: "key", transport: stub))
+
+        let error = await #expect(throws: InternetDataError.self) {
+            _ = try await client.database.downloadURL(
+                id: "bogon_ip_v1", format: .csvgz, build: "20261029.aaaaaa",
+            )
+        }
+        #expect(error?.kind == .badRequest)
+        #expect(error?.isRetryable == false)
+        #expect(error?.message == "BUILD_GONE")
+        #expect(await stub.callCount == 1)
+    }
+}
+
 /// The streaming transfer, against real local origins for the same reason: the
 /// second request goes to object storage rather than to the API, and what it
 /// must NOT carry is a header.
