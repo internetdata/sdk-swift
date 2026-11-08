@@ -175,6 +175,9 @@ struct ErrorMiddleware: ClientMiddleware {
                 status: Int(status),
             )
         }
+        if operationID == "downloadDatabaseV2" {
+            ServedLocation.current?.record(response.headerFields[.location])
+        }
         guard status >= 400 else {
             return (response, responseBody)
         }
@@ -184,6 +187,29 @@ struct ErrorMiddleware: ClientMiddleware {
         throw InternetDataError.from(
             status: Int(status), headers: response.headerFields, body: collected ?? [],
         )
+    }
+}
+
+/// The `Location` a download redirect carried, exactly as served.
+///
+/// The generated client reads that header as a URI component and percent-decodes
+/// it, so a signed link's `%26` came back as a parameter separator, its `%2B` as a
+/// `+` that object storage reads as a space, and a `%2F` in the object key as a
+/// path separator. ``ErrorMiddleware`` records the header as it arrived into the
+/// capture ``DatabaseAPI/downloadURL(id:format:build:timeout:)`` binds around its
+/// one request.
+enum ServedLocation {
+    @TaskLocal static var current: Capture?
+
+    final class Capture: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: String?
+
+        var location: String? { lock.withLock { value } }
+
+        func record(_ location: String?) {
+            lock.withLock { value = location }
+        }
     }
 }
 

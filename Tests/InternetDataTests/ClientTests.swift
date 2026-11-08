@@ -570,6 +570,33 @@ struct DownloadRedirectTests {
         )
     }
 
+    // The generated client percent-decodes `Location`, so a signed value holding
+    // `%26` came back as a second parameter, `%2B` as a `+` that object storage
+    // reads as a space, and `%2F` in the key as a path separator.
+    @Test("the link keeps every escape the server sent, through to the transfer")
+    func linkKeepsItsEscapes() async throws {
+        let storage = try await TestOrigin.start { _ in
+            .init(status: .ok, headers: [("Content-Length", "5")], body: Array("hello".utf8))
+        }
+        let path = "/dl/a%2Fb.csv.gz?sig=a%2Bb%26c%3Dd&cd=attachment%3B%20filename%3D%22x%22&p=100%25"
+        let location = "http://127.0.0.1:\(storage.port)\(path)"
+        let api = try await TestOrigin.start { _ in .redirect(to: location) }
+        defer {
+            Task { try? await storage.stop() }
+            Task { try? await api.stop() }
+        }
+
+        let client = InternetDataClient(
+            options: .init(apiKey: "key", baseURL: URL(string: "http://127.0.0.1:\(api.port)")!),
+        )
+        let url = try await client.database.downloadURL(id: "bogon_ip_v1", format: .csvgz, build: "20261105.0t53s5")
+        let bytes = try await client.database.downloadBytes("bogon_ip_v1", format: .csvgz)
+
+        #expect(url.absoluteString == location)
+        #expect(bytes == Data("hello".utf8))
+        #expect(storage.receivedPaths == [path])
+    }
+
     @Test("a transport that does follow redirects is refused before the body is read")
     func aFollowingTransportIsRefused() async throws {
         let storage = try await TestOrigin.start { _ in .neverEndingGigabyte }
