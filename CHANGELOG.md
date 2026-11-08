@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.9.1 - 2026-11-08
+
+### Fixes
+
+- Hand back the download link exactly as served, its escapes intact ([`f6fb610`](https://github.com/internetdata/sdk-swift/commit/f6fb610eb1397a198ce969ca26c6fa7c87bac83f))
+
 ## 2.9.0 - 2026-11-07
 
 ### Features
