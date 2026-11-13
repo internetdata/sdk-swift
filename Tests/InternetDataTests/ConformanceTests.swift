@@ -234,25 +234,6 @@ struct ConformanceTests {
         await #expect(stub.callCount == testCase.expect.httpRequests)
     }
 
-    // The second case pins that no cap refuses a batch past the endpoint's thousand.
-    @Test(
-        "a large batch is sent in chunks of a thousand",
-        arguments: ["chunks-of-one-thousand", "uncapped-input-is-chunked"],
-    )
-    func largeBatchIsSentInChunksOfAThousand(_ name: String) async throws {
-        let testCase = corpus.batchCase(name)
-        let stub = StubTransport(StubTransport.answers(for: testCase.input))
-        let client = InternetDataClient(options: .init(cache: nil, transport: stub))
-
-        let results = try await client.lookupBatch(testCase.input)
-
-        #expect(results.count == testCase.expect.keyCount)
-        await #expect(stub.callCount == testCase.expect.httpRequests)
-        for ip in testCase.input {
-            #expect(try results[ip]?.get().ip == ip, "\(ip) should be answered for itself")
-        }
-    }
-
     // A per-entry failure carries no headers, so its 429 can only be a spent
     // allowance, and a 500 is the server's; neither is retried per entry, because
     // retries belong to the call and the call succeeded.

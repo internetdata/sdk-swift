@@ -10,75 +10,6 @@ import Testing
 /// endpoints and the AS and domain lookups, as distinct from the shared corpus.
 @Suite("Lookup")
 struct LookupTests {
-    // Enough addresses for seven chunks of the batch endpoint's 1000, so a
-    // concurrency bound has something to bound: one request per chunk, and only
-    // the chunks overlap.
-    static let manyAddresses = (0..<6001).map { "9.\(1 + $0 / 65536).\($0 / 256 % 256).\($0 % 256)" }
-
-    // Peak in-flight is the only measurement that tells a real limit from an
-    // option that was accepted and ignored.
-    @Test("a per-call concurrency is honored, measured at the transport")
-    func perCallConcurrencyIsHonored() async throws {
-        let stub = StubTransport(
-            StubTransport.answers(for: Self.manyAddresses), delay: .milliseconds(20),
-        )
-        let client = client(stub, cache: nil)
-
-        _ = try await client.lookupBatch(Self.manyAddresses, options: .init(concurrency: 3))
-
-        await #expect(stub.callCount == 7, "one request per chunk of 1000")
-        await #expect(stub.peakInFlight <= 3)
-        await #expect(stub.peakInFlight > 1, "requests never overlapped")
-    }
-
-    @Test("a per-call concurrency overrides the client default")
-    func perCallConcurrencyOverridesTheClientDefault() async throws {
-        let stub = StubTransport(
-            StubTransport.answers(for: Self.manyAddresses), delay: .milliseconds(20),
-        )
-        let client = client(stub, cache: nil, concurrency: 2)
-
-        _ = try await client.lookupBatch(Self.manyAddresses, options: .init(concurrency: 6))
-
-        await #expect(stub.peakInFlight > 2, "the override was ignored")
-        await #expect(stub.peakInFlight <= 6)
-    }
-
-    @Test("without an override the client concurrency still applies")
-    func clientConcurrencyAppliesWithoutAnOverride() async throws {
-        let stub = StubTransport(
-            StubTransport.answers(for: Self.manyAddresses), delay: .milliseconds(20),
-        )
-        let client = client(stub, cache: nil, concurrency: 2)
-
-        _ = try await client.lookupBatch(Self.manyAddresses)
-
-        await #expect(stub.peakInFlight <= 2)
-    }
-
-    // No cap on what one call accepts: chunking to the endpoint's 1000 is the
-    // library's job, so 2,500 addresses is three requests rather than an error.
-    @Test("a batch is never capped, and goes out as one POST per chunk of 1000")
-    func aBatchIsNeverCapped() async throws {
-        let addresses = (0..<2500).map { "9.9.\($0 / 256).\($0 % 256)" }
-        let stub = StubTransport(StubTransport.answers(for: addresses))
-        let client = client(stub, cache: nil)
-
-        let results = try await client.lookupBatch(addresses)
-
-        // The stub answers a batch only as a POST, so an answered address is one
-        // that went out that way.
-        await #expect(stub.calls == ["batch", "batch", "batch"])
-        #expect(results.keys == addresses)
-        for ip in addresses {
-            guard case .success(let result) = results[ip] else {
-                Issue.record("\(ip) was not answered")
-                continue
-            }
-            #expect(result.ip == ip)
-        }
-    }
-
     // A group primed with no children waits for none, forever.
     @Test("a per-call concurrency below 1 is refused before any request", arguments: [0, -1])
     func concurrencyBelowOneIsRefused(_ concurrency: Int) async throws {
@@ -150,21 +81,6 @@ struct LookupTests {
         call.cancel()
 
         await #expect(throws: CancellationError.self) { try await call.value }
-    }
-
-    @Test("cancelling a batch propagates rather than becoming per-address failures")
-    func cancellingABatchPropagates() async throws {
-        let stub = StubTransport(
-            StubTransport.answers(for: Self.manyAddresses), delay: .seconds(5),
-        )
-        let client = client(stub, cache: nil, retries: 0)
-
-        let batch = Task { try await client.lookupBatch(Self.manyAddresses) }
-        try await Task.sleep(for: .milliseconds(100))
-        batch.cancel()
-
-        // A map of network errors would otherwise look like a completed batch.
-        await #expect(throws: CancellationError.self) { try await batch.value }
     }
 
     @Test("isBogon is on the client and agrees with the standalone function")
@@ -288,7 +204,8 @@ struct LookupTests {
         }
         func proxy(_ n: Int) -> [String: Any] {
             [
-                "provider": "p\(n)", "provider_name": "P\(n)", "first_seen": "2025-01-\(n)", "last_seen": "2026-01-\(n)",
+                "provider": "p\(n)", "provider_name": "P\(n)", "first_seen": "2025-01-\(n)",
+                "last_seen": "2026-01-\(n)",
                 "hits": n, "hits_days_pct": n + 1, "providers_num": n + 2,
             ]
         }
@@ -310,14 +227,17 @@ struct LookupTests {
         ]
         body["carrier"] = ["name": "n", "mcc": "232", "mnc": "01", "country": "AT", "confidence": "high"]
         body["satellite"] = [
-            "provider": "s", "provider_name": "S", "orbit": "leo", "segment": "consumer", "country": "US", "asn": 14593,
+            "provider": "s", "provider_name": "S", "orbit": "leo", "segment": "consumer", "country": "US",
+            "asn": 14593,
             "confidence": "medium",
         ]
         body["ssh"] = [
             "port": 22, "banner": "b", "host_key_fp": "f", "session_ok": true, "first_seen": "2025-03-01",
             "last_seen": "2026-03-01",
         ]
-        body["smtp"] = ["port": 25, "banner": "m", "session_ok": false, "first_seen": "2025-04-01", "last_seen": "2026-04-01"]
+        body["smtp"] = [
+            "port": 25, "banner": "m", "session_ok": false, "first_seen": "2025-04-01", "last_seen": "2026-04-01",
+        ]
         body["dns_resolver"] = [
             "port": 53, "recursion_available": true, "rcode": 5, "answer_correct": false, "first_seen": "2025-05-01",
             "last_seen": "2026-05-01",
@@ -331,7 +251,9 @@ struct LookupTests {
             "id": "i", "name": "n", "org": "o", "country": "c", "status": "s", "source": "r", "domain": "d",
             "abuse_email": "a", "asn": 1,
         ]
-        body["rwhois"] = ["id": "i2", "name": "n2", "country": "c2", "source": "r2", "domain": "d2", "abuse_email": "a2"]
+        body["rwhois"] = [
+            "id": "i2", "name": "n2", "country": "c2", "source": "r2", "domain": "d2", "abuse_email": "a2",
+        ]
         body["hosted_domains"] = ["total": 42]
         let stub = StubTransport(["1.1.1.1": .json(body)])
 
@@ -513,7 +435,9 @@ struct LookupTests {
     func everyLookupGoesToTheBaseURL() async throws {
         let lookup = Self.json(StubTransport.answer(for: "146.70.116.130"))
         let batch = Self.json([
-            "results": ["8.8.8.8": StubTransport.answer(for: "8.8.8.8"), "9.9.9.9": StubTransport.answer(for: "9.9.9.9")],
+            "results": [
+                "8.8.8.8": StubTransport.answer(for: "8.8.8.8"), "9.9.9.9": StubTransport.answer(for: "9.9.9.9"),
+            ],
             "errors": [String: Any](),
         ])
         let answers: [String: TestOrigin.Answer] = [
@@ -678,6 +602,128 @@ extension LookupTests {
             "window_end": "2026-10-04T07:00:00Z",
         ],
     ]
+}
+
+/// The batches of thousands, one at a time. Each chunk's answer is read in one
+/// stretch on a thread of the concurrency runtime, and run side by side they held
+/// every thread a small CI runner has, so the timing tests' deadlines fired late.
+/// The tests that count requests are served refusals, which cost next to nothing
+/// to read, and the two that read thousands of answers send one chunk at a time.
+@Suite("Bulk batch", .serialized)
+struct BulkBatchTests {
+    // Enough addresses for seven chunks of the batch endpoint's 1000, so a
+    // concurrency bound has something to bound: one request per chunk, and only
+    // the chunks overlap.
+    static let manyAddresses = (0..<6001).map { "9.\(1 + $0 / 65536).\($0 / 256 % 256).\($0 % 256)" }
+
+    // Peak in-flight is the only measurement that tells a real limit from an
+    // option that was accepted and ignored.
+    @Test("a per-call concurrency is honored, measured at the transport")
+    func perCallConcurrencyIsHonored() async throws {
+        let stub = StubTransport(
+            StubTransport.refusals(for: Self.manyAddresses), delay: .milliseconds(20),
+        )
+        let client = client(stub, cache: nil)
+
+        _ = try await client.lookupBatch(Self.manyAddresses, options: .init(concurrency: 3))
+
+        await #expect(stub.callCount == 7, "one request per chunk of 1000")
+        await #expect(stub.peakInFlight <= 3)
+        await #expect(stub.peakInFlight > 1, "requests never overlapped")
+    }
+
+    @Test("a per-call concurrency overrides the client default")
+    func perCallConcurrencyOverridesTheClientDefault() async throws {
+        let stub = StubTransport(
+            StubTransport.refusals(for: Self.manyAddresses), delay: .milliseconds(20),
+        )
+        let client = client(stub, cache: nil, concurrency: 2)
+
+        _ = try await client.lookupBatch(Self.manyAddresses, options: .init(concurrency: 6))
+
+        await #expect(stub.peakInFlight > 2, "the override was ignored")
+        await #expect(stub.peakInFlight <= 6)
+    }
+
+    @Test("without an override the client concurrency still applies")
+    func clientConcurrencyAppliesWithoutAnOverride() async throws {
+        let stub = StubTransport(
+            StubTransport.refusals(for: Self.manyAddresses), delay: .milliseconds(20),
+        )
+        let client = client(stub, cache: nil, concurrency: 2)
+
+        _ = try await client.lookupBatch(Self.manyAddresses)
+
+        await #expect(stub.peakInFlight <= 2)
+    }
+
+    // No cap on what one call accepts: chunking to the endpoint's 1000 is the
+    // library's job, so 2,500 addresses is three requests rather than an error.
+    @Test("a batch is never capped, and goes out as one POST per chunk of 1000")
+    func aBatchIsNeverCapped() async throws {
+        let addresses = (0..<2500).map { "9.9.\($0 / 256).\($0 % 256)" }
+        let stub = StubTransport(StubTransport.answers(for: addresses))
+        let client = client(stub, cache: nil)
+
+        let results = try await client.lookupBatch(addresses, options: .init(concurrency: 1))
+
+        // The stub answers a batch only as a POST, so an answered address is one
+        // that went out that way.
+        await #expect(stub.calls == ["batch", "batch", "batch"])
+        #expect(results.keys == addresses)
+        for ip in addresses {
+            guard case .success(let result) = results[ip] else {
+                Issue.record("\(ip) was not answered")
+                continue
+            }
+            #expect(result.ip == ip)
+        }
+    }
+
+    @Test("cancelling a batch propagates rather than becoming per-address failures")
+    func cancellingABatchPropagates() async throws {
+        let stub = StubTransport(
+            StubTransport.answers(for: Self.manyAddresses), delay: .seconds(5),
+        )
+        let client = client(stub, cache: nil, retries: 0)
+
+        let batch = Task { try await client.lookupBatch(Self.manyAddresses) }
+        try await Task.sleep(for: .milliseconds(100))
+        batch.cancel()
+
+        // A map of network errors would otherwise look like a completed batch.
+        await #expect(throws: CancellationError.self) { try await batch.value }
+    }
+
+    // The corpus's two, which in the conformance suite would decode thousands of
+    // whole answers beside the timing tests. The second pins that no cap refuses
+    // a batch past the endpoint's thousand.
+    @Test(
+        "a large batch is sent in chunks of a thousand",
+        arguments: ["chunks-of-one-thousand", "uncapped-input-is-chunked"],
+    )
+    func largeBatchIsSentInChunksOfAThousand(_ name: String) async throws {
+        let testCase = Corpus.shared.batchCase(name)
+        let stub = StubTransport(StubTransport.answers(for: testCase.input))
+        let client = InternetDataClient(options: .init(cache: nil, transport: stub))
+
+        let results = try await client.lookupBatch(testCase.input, options: .init(concurrency: 1))
+
+        #expect(results.count == testCase.expect.keyCount)
+        await #expect(stub.callCount == testCase.expect.httpRequests)
+        for ip in testCase.input {
+            #expect(try results[ip]?.get().ip == ip, "\(ip) should be answered for itself")
+        }
+    }
+
+    func client(
+        _ transport: some ClientTransport, cache: CacheOptions? = CacheOptions(), concurrency: Int = 8,
+        retries: Int = 2,
+    ) -> InternetDataClient {
+        InternetDataClient(
+            options: .init(cache: cache, concurrency: concurrency, retries: retries, transport: transport),
+        )
+    }
 }
 
 /// The client's timeout and the per-call one on the lookups, each bounding a

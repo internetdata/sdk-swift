@@ -37,7 +37,32 @@ final class StubTransport: ClientTransport {
     }
 
     static func answers(for ips: [String]) -> [String: Route] {
-        Dictionary(uniqueKeysWithValues: ips.map { ($0, .json(answer(for: $0))) })
+        Dictionary(uniqueKeysWithValues: ips.map { ($0, Route(body: Data(answerJSON(for: $0).utf8))) })
+    }
+
+    /// Every address refused as one the API holds nothing for: what a test that
+    /// counts requests wants, since reading a refusal costs next to nothing and
+    /// thousands of whole answers starved the timing tests beside them.
+    static func refusals(for ips: [String]) -> [String: Route] {
+        let refusal = Route.json(["error": "not found"], status: 404)
+        return Dictionary(uniqueKeysWithValues: ips.map { ($0, refusal) })
+    }
+
+    /// ``answer(for:)`` as the bytes a server sends, serialized once and filled in
+    /// per address: a batch test asks for thousands, and serializing each one
+    /// starved the timing tests running beside it on a small CI runner.
+    static func answerJSON(for ip: String) -> String {
+        answerTemplate.replacingOccurrences(of: "\"\(placeholder)\"", with: quoted(ip))
+    }
+
+    private static let placeholder = "address-placeholder"
+
+    private static let answerTemplate = String(
+        decoding: (try? JSONSerialization.data(withJSONObject: answer(for: placeholder))) ?? Data(), as: UTF8.self,
+    )
+
+    private static func quoted(_ text: String) -> String {
+        "\"" + text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
     }
 
     /// The smallest whole answer the API gives: Unlimited's, every member the
@@ -148,27 +173,37 @@ final class StubTransport: ClientTransport {
     // table knows is a result if its route is a 200 and an entry error otherwise,
     // and an unknown address is the 400 the API gives a string that is not one.
     // One call however many addresses, which is what the request counts measure.
+    // Each answer goes in as the bytes it was routed with, never parsed again.
     private func batchRoute(_ body: HTTPBody?) async throws -> Route {
         let bytes = try await ArraySlice(collecting: body ?? HTTPBody(), upTo: 1 << 20)
         let decoded = try JSONSerialization.jsonObject(with: Data(bytes)) as? [String: Any]
         let ips = decoded?["ips"] as? [String] ?? []
         await state.sent(ips, members: (decoded?.keys).map { $0.sorted() } ?? [])
-        var results: [String: Any] = [:]
-        var failures: [String: Any] = [:]
+        var results: [String] = []
+        var failures: [String] = []
+        var messages: [Data: String] = [:]
         for ip in ips {
             guard let route = routes[ip] else {
-                failures[ip] = ["status": 400, "error": "not a valid IP address, AS number or domain"]
+                let refusal = #"{"status":400,"error":"not a valid IP address, AS number or domain"}"#
+                failures.append(Self.quoted(ip) + ":" + refusal)
                 continue
             }
-            let answer = route.body.flatMap { try? JSONSerialization.jsonObject(with: $0) } ?? [:]
             if route.status == 200 {
-                results[ip] = answer
+                let served = String(decoding: route.body ?? Data("{}".utf8), as: UTF8.self)
+                results.append(Self.quoted(ip) + ":" + served)
                 continue
             }
-            let message = (answer as? [String: Any])?["error"] as? String ?? "request failed"
-            failures[ip] = ["status": route.status, "error": message]
+            let served = route.body ?? Data()
+            let message = messages[served] ?? {
+                let answer = try? JSONSerialization.jsonObject(with: served) as? [String: Any]
+                return answer?["error"] as? String ?? "request failed"
+            }()
+            messages[served] = message
+            failures.append(Self.quoted(ip) + #":{"status":\#(route.status),"error":\#(Self.quoted(message))}"#)
         }
-        return .json(["results": results, "errors": failures])
+        let answer = #"{"results":{"# + results.joined(separator: ",") + #"},"errors":{"#
+            + failures.joined(separator: ",") + "}}"
+        return Route(body: Data(answer.utf8))
     }
 
     // A lookup's path is its target; anything under /api/ is keyed by its path so
