@@ -1,6 +1,8 @@
 import AsyncHTTPClient
 import Foundation
+import HTTPTypes
 import OpenAPIAsyncHTTPClient
+import OpenAPIRuntime
 import Testing
 
 @testable import InternetData
@@ -515,7 +517,37 @@ struct ClientTests {
     func optionsAreValidated() {
         #expect(InternetDataClient.Options(apiKey: "k").retries == 2)
         #expect(InternetDataClient.Options(apiKey: "k").baseURL == InternetDataClient.defaultBaseURL)
-        #expect(InternetDataClient.defaultBaseURL.absoluteString == "https://internetdata.io")
+        #expect(InternetDataClient.defaultBaseURL.absoluteString == "https://api.internetdata.io")
+    }
+
+    // The authorization server is the apex: the API host answers no OAuth path.
+    @Test(
+        "oauth signs in at the apex, and every other call stays on the base URL",
+        arguments: [
+            ("https://api.internetdata.io", "https://internetdata.io"),
+            ("https://API.internetdata.io/", "https://internetdata.io"),
+            ("https://api-next.example.com", "https://next.example.com"),
+            ("https://internetdata.io", "https://internetdata.io"),
+            ("http://127.0.0.1:8080", "http://127.0.0.1:8080"),
+            ("https://apis.example.com", "https://apis.example.com"),
+            ("https://api-.example.com", "https://api-.example.com"),
+        ],
+    )
+    func oauthSignsInAtTheApex(_ base: String, _ apex: String) async throws {
+        let stub = BaseRecorder()
+        let client = InternetDataClient(
+            options: .init(apiKey: "key", baseURL: URL(string: base)!, retries: 0, transport: stub),
+        )
+
+        let url = try client.oauth.authorizationURL(
+            clientID: "c", redirectURI: "http://127.0.0.1/cb", codeChallenge: "x",
+        )
+        _ = try? await client.oauth.metadata()
+        _ = try? await client.database.list()
+
+        #expect(url.absoluteString.hasPrefix(apex + "/oauth/authorize?"), "\(url)")
+        let api = base.hasSuffix("/") ? String(base.dropLast()) : base
+        #expect(await stub.bases == [apex, api])
     }
 
     // The transport appends the request path to whatever path the base URL
@@ -805,6 +837,31 @@ struct DownloadTransferTests {
         func stop() {
             Task { try? await storage.stop() }
             Task { try? await api.stop() }
+        }
+    }
+}
+
+/// Records the base URL every request was sent to, and answers nothing a call
+/// could read.
+final class BaseRecorder: ClientTransport {
+    private let log = Log()
+
+    var bases: [String] {
+        get async { await log.bases }
+    }
+
+    func send(
+        _ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String,
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        await log.record(baseURL.absoluteString)
+        return (HTTPResponse(status: .notFound), nil)
+    }
+
+    private actor Log {
+        var bases: [String] = []
+
+        func record(_ base: String) {
+            bases.append(base)
         }
     }
 }

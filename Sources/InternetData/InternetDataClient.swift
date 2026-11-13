@@ -13,7 +13,7 @@ import OpenAPIRuntime
 /// spells the same calls the same way, and a codebase holding both should not
 /// have to remember which one is flat.
 public struct InternetDataClient: Sendable {
-    public static let defaultBaseURL = URL(string: "https://internetdata.io")!
+    public static let defaultBaseURL = URL(string: "https://api.internetdata.io")!
 
     /// The licensed database downloads.
     public let database: DatabaseAPI
@@ -54,7 +54,7 @@ public struct InternetDataClient: Sendable {
             api: api, transport: transport, retries: options.retries, timeout: options.timeout,
         )
         self.oauth = OauthAPI(
-            transport: transport, baseURL: baseURL, retries: options.retries,
+            transport: transport, baseURL: authorizationServer(of: baseURL), retries: options.retries,
             timeout: options.timeout,
         )
     }
@@ -78,9 +78,14 @@ extension InternetDataClient {
         ///
         /// A trailing slash is dropped. Every path this client appends begins with
         /// one and the transport appends it to whatever path the base URL already
-        /// carries, so `https://internetdata.io/` would ask for `//api/v2/...`.
-        /// That is a different path to the server: production answers it with a
-        /// `308` the default transport refuses to follow, so every call would fail.
+        /// carries, so `https://api.internetdata.io/` would ask for `//api/v2/...`.
+        /// That is a different path to the server, which answers it with a
+        /// redirect the default transport refuses to follow, so every call would fail.
+        ///
+        /// ``InternetDataClient/oauth`` signs in at the apex rather than here, which
+        /// serves no OAuth path: a leading `api.` is dropped and `api-<name>.`
+        /// becomes `<name>.`, so the default signs in at `https://internetdata.io`.
+        /// Any other base URL is used as given.
         public var baseURL: URL
         /// Retry attempts for a transient failure. Default 2.
         public var retries: Int
@@ -118,8 +123,8 @@ extension InternetDataClient {
 // Every path the generated client appends begins with a slash, and the transport
 // appends it to whatever path the base URL already carries, so a base URL ending
 // in one asks for `//api/v2/...`. That is a different path to the server, which
-// answers it with a `308` the default transport refuses to follow, so every call
-// fails. Every trailing slash goes rather than one: dropping a single slash
+// answers it with a redirect the default transport refuses to follow, so every
+// call fails. Every trailing slash goes rather than one: dropping a single slash
 // still doubles `.../`.
 private func withoutTrailingSlashes(_ url: URL) -> URL {
     var text = url.absoluteString
@@ -127,4 +132,25 @@ private func withoutTrailingSlashes(_ url: URL) -> URL {
         text.removeLast()
     }
     return URL(string: text) ?? url
+}
+
+// The authorization server is the apex, not the API host, which serves no OAuth
+// path: a leading `api.` goes, `api-<name>.` becomes `<name>.`, and any other
+// host is used as given.
+private func authorizationServer(of baseURL: URL) -> URL {
+    guard var parts = URLComponents(url: baseURL, resolvingAgainstBaseURL: false), let host = parts.host,
+        let dot = host.firstIndex(of: "."), host.index(after: dot) < host.endIndex
+    else {
+        return baseURL
+    }
+    let label = host[..<dot].lowercased()
+    let rest = host[host.index(after: dot)...]
+    if label == "api" {
+        parts.host = String(rest)
+    } else if label.hasPrefix("api-"), label.count > 4 {
+        parts.host = "\(host[host.index(host.startIndex, offsetBy: 4)..<dot]).\(rest)"
+    } else {
+        return baseURL
+    }
+    return parts.url ?? baseURL
 }
