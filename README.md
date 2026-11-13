@@ -3,9 +3,9 @@
 [![Swift](https://img.shields.io/badge/swift-6.1%2B-F05138.svg)](https://swift.org)
 [![license](https://img.shields.io/github/license/internetdata/sdk-swift)](LICENSE)
 
-The official Swift client library for the [InternetData](https://internetdata.io) database API.
+The official Swift client library for the [InternetData](https://internetdata.io) API.
 
-It downloads the IP and ASN databases your organization is licensed for, verifies them against the published checksums, and tells you what is inside one before you fetch it.
+It tells you what every InternetData database says about an IP address, an AS or a domain, and it downloads the databases your organization is licensed for.
 
 ## Getting Started
 
@@ -13,7 +13,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/internetdata/sdk-swift.git", from: "2.9.2"),
+    .package(url: "https://github.com/internetdata/sdk-swift.git", from: "2.10.0"),
 ]
 ```
 
@@ -30,11 +30,172 @@ Requires Swift 6.1 or newer, and macOS 13, iOS 16, tvOS 16, watchOS 9 or visionO
 
 ## Usage
 
-Every database published today needs an API key carrying the `db.download` scope; create one in the [console](https://app.internetdata.io). The Open databases are licensed to every organization from the start and are free under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), and `list()` marks them `open`. The rest are licensed by contract, one family at a time: if your organization doesn't have a license yet, [request an evaluation](https://internetdata.io/contact?purpose=evaluation&subject=Evaluation+license). `apiKey` is nevertheless optional - a client built without one sends no `Authorization` header at all, ready for a database served without a license.
+**No API key needed to start.** Unlimited, the free plan, answers the address's country, its AS, who uses it, its reverse DNS name and abuse contact, and the Tor, relay, anycast, carrier, satellite and services flags, limited per address per minute.
 
 ```swift
 import InternetData
 
+let client = InternetDataClient()
+
+let result = try await client.lookup("146.70.116.130")
+print(result.location.country)   // AT
+print(result.asn.name)           // M247 Europe SRL
+print(result.isTor)              // false
+```
+
+### With an API key
+
+Every paid plan answers every field: the VPN, proxy, hosting and CDN flags and the provider and confidence behind each, the city and the coordinates, the Whois records and the hosted domain count. The plans differ only in how many lookups they include, and a free account tries every field, 100 lookups a day. Create a key in the [console](https://app.internetdata.io), then pass it in:
+
+```swift
+let client = InternetDataClient(apiKey: ProcessInfo.processInfo.environment["INTERNETDATA_API_KEY"]!)
+
+let result = try await client.lookup("146.70.116.130")
+print(result.isVpn)               // Optional(true), on a paid plan
+print(result.vpn?.providerName)   // Optional("Mullvad"), on a paid plan
+print(result.location.city)       // Optional("Vienna"), on a paid plan
+```
+
+Every setting has a default, and `InternetDataClient.Options` is where you change one:
+
+```swift
+let client = InternetDataClient(options: .init(apiKey: key, concurrency: 32, retries: 4))
+```
+
+### Your own address
+
+```swift
+let result = try await client.myIP()
+print(result.ip)   // the address we saw this call come from
+```
+
+Same answer `lookup` would give for that address, and the same cost against your allowance. It is deliberately not cached: which address you are is the whole question, and a machine that moves between networks would otherwise be told where it used to be.
+
+### An AS or a domain
+
+```swift
+let asn = try await client.lookupASN(9009)
+print(asn.name, asn.registry)    // M247 Europe SRL ripe
+
+let domain = try await client.lookupDomain("example.com")
+print(domain.isRegistered)       // true
+print(domain.dns?.mx.first?.host) // on a paid plan
+```
+
+A paid plan adds an AS's Whois record and the prefixes it announces, and a domain's DNS records, its organization's IP ranges and whether it's a disposable email domain. Neither is cached or batched, and `lookup` takes an address alone: it refuses an AS or a domain as `badRequest` before sending anything.
+
+### Your plan and usage
+
+```swift
+let acct = try await client.myEntitlement()
+print(acct.plan.key)          // max
+print(acct.usage.requests)    // 580
+print(acct.usage.windowEnd)   // when the allowance resets
+```
+
+Usage counts against the anniversary of your subscription on a paid plan, not the calendar month and not the billing period, and against the UTC day on the free plan; it is the same number a lookup is gated on. `hardLimit` is `nil` on an uncapped plan, which is not the same as zero.
+
+### Batch lookup
+
+Look up many addresses at once. Bogons and cached answers are handled locally, and everything else goes to the batch endpoint in chunks of up to 1000 addresses, in parallel. The batch endpoint needs a paid plan:
+
+```swift
+let results = try await client.lookupBatch(["146.70.116.130", "8.8.8.8", "1.1.1.1"])
+
+for (ip, outcome) in results {
+    switch outcome {
+    case .success(let result):
+        print("\(ip): \(result.asn.name)")
+    case .failure(let error):
+        print("\(ip): \(error)")
+    }
+}
+```
+
+Results are keyed by address, in the order you first listed each one, so duplicates in your list collapse into a single entry and one address failing never loses the rest: it carries its error as its value, with the status the API would have given that address on its own. `results["8.8.8.8"]` gets one back on its own, and `results.keys` is the order you passed in.
+
+How many chunks are in flight at once, how many times a failed chunk is retried, and how long each attempt at a chunk may take, are configurable per call:
+
+```swift
+let results = try await client.lookupBatch(manyIps, options: .init(concurrency: 4, retries: 4, timeout: .seconds(10)))
+```
+
+### Caching
+
+Answers are cached by default, so repeat lookups of the same address are free:
+
+```swift
+let client = InternetDataClient()
+
+let result = try await client.lookup("146.70.116.130")
+print(result.asn.name)    // M247 Europe SRL, API request
+
+let result2 = try await client.lookup("146.70.116.130")
+print(result2.asn.name)   // M247 Europe SRL, no API request, result was cached
+```
+
+You can change the default cache variables (max size, TTL, etc) on initialization, or even disable it:
+
+```swift
+let client = InternetDataClient(options: .init(cache: .init(maxEntries: 50_000, ttl: .seconds(6 * 3600))))
+let clientNoCache = InternetDataClient(options: .init(cache: nil))
+```
+
+### Private and reserved addresses
+
+Private, loopback, link-local, documentation and multicast addresses (and their IPv6 equivalents, including the 6to4 and Teredo ranges) are reserved space no database says anything about. The library answers them locally, so they cost no request and no quota:
+
+```swift
+let result = try await client.lookup("192.168.1.1")
+result.isBogon   // true
+result.isVpn     // Optional(false)
+```
+
+The check is available on the client, which is handy when your inputs are addresses anyway:
+
+```swift
+client.isBogon("10.0.0.1")   // true
+client.isBogon("8.8.8.8")    // false
+```
+
+It is also a free function, if you want it without a client:
+
+```swift
+import InternetData
+
+isBogon("10.0.0.1")   // true
+```
+
+### Errors
+
+Failures throw an `InternetDataError` carrying a `kind`, the API's own message, and an `isRetryable` flag:
+
+```swift
+do {
+    _ = try await client.lookup("146.70.116.130")
+} catch let error as InternetDataError {
+    print(error.kind, error.message, error.isRetryable)
+}
+```
+
+`kind` is one of `badRequest`, `unauthorized`, `forbidden`, `rateLimited`, `quotaExceeded`, `serverError` or `network`. A database call's `message` is the API's `rc`, such as `NOT_LICENSED`.
+
+Note that `rateLimited` and `quotaExceeded` both arrive as HTTP 429 and are not the same thing. A rate limit carries `Retry-After`, so retrying later works; but a spent quota needs your allowance raised or the window to roll over. The library retries rate limits for you, waiting as long as the API asks, but not if your quota is exceeded.
+
+Each attempt is abandoned after 30 seconds by default (`timeout` on the options), which fails as a retryable `network` error. A download is timed only until object storage starts answering, so a large file is never cut off. One call can set its own, longer or shorter - `lookup`, `myIP`, `lookupASN`, `lookupDomain`, `myEntitlement`, a batch, every `oauth` method, and every `client.database` call but the transfers:
+
+```swift
+let result = try await client.lookup("146.70.116.130", timeout: .seconds(5))
+let databases = try await client.database.list(timeout: .seconds(5))
+```
+
+`lookup`, `myIP`, `lookupASN`, `lookupDomain`, `myEntitlement` and a batch take `retries` for that call alone the same way, and one below zero is refused as `badRequest` before any request.
+
+### Database downloads
+
+Every database published today needs an API key carrying the `db.download` scope. The Open databases are licensed to every organization from the start and are free under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), and `list()` marks them `open`. The rest are licensed by contract, one family at a time: if your organization doesn't have a license yet, [request an evaluation](https://internetdata.io/contact?purpose=evaluation&subject=Evaluation+license).
+
+```swift
 let client = InternetDataClient(apiKey: ProcessInfo.processInfo.environment["INTERNETDATA_API_KEY"]!)
 
 for database in try await client.database.list() {
@@ -47,21 +208,7 @@ The database calls live under `client.database`, where the sibling VPNDetection 
 
 A license is held against a FAMILY (`vpn_ip`), while a download names a VERSION (`vpn_ip_v1`), so the IDs everything below takes come from `versions`. Old versions are frozen rather than migrated, so both stay downloadable.
 
-Every setting has a default, and `InternetDataClient.Options` is where you change one:
-
-```swift
-let client = InternetDataClient(options: .init(apiKey: key, retries: 4))
-```
-
-Each attempt is abandoned after 30 seconds by default (`timeout` on the options), which fails as a retryable `network` error. A download is timed only until object storage starts answering, so a large file is never cut off.
-
-From 2.2.0, `list`, `metadata`, `checksums`, `downloads` and `downloadURL` each take a `timeout` of their own, bounding each attempt at that one call in place of the client's:
-
-```swift
-let databases = try await client.database.list(timeout: .seconds(5))
-```
-
-The transfers deliberately take none, so there is nothing to pass and a call that tries does not compile rather than accepting the option and quietly doing nothing with it: a database runs to gigabytes and minutes, so any bound that suits a JSON call would abandon a healthy download. `downloadURL` does take one, because minting the link is an ordinary API request - it bounds that request, not whatever you do with the link afterwards.
+`list`, `metadata`, `checksums`, `downloads` and `downloadURL` each take a `timeout` of their own. The transfers deliberately take none, so there is nothing to pass and a call that tries does not compile rather than accepting the option and quietly doing nothing with it: a database runs to gigabytes and minutes, so any bound that suits a JSON call would abandon a healthy download. `downloadURL` does take one, because minting the link is an ordinary API request - it bounds that request, not whatever you do with the link afterwards.
 
 ### What is inside a database
 
@@ -144,37 +291,9 @@ for attempt in try await client.database.downloads(limit: 20) {
 }
 ```
 
-### Errors
-
-Failures throw an `InternetDataError` carrying a `kind`, the API's own `rc` as its `message`, and an `isRetryable` flag:
-
-```swift
-do {
-    _ = try await client.database.metadata(id: "vpn_ip_v1")
-} catch let error as InternetDataError {
-    print(error.kind, error.message, error.isRetryable)
-}
-```
-
-`kind` is one of `badRequest`, `unauthorized`, `forbidden`, `rateLimited`, `quotaExceeded`, `serverError` or `network`.
-
-`rateLimited` is a 429 that carries `Retry-After`, and the library retries it for you, waiting as long as it says. `quotaExceeded` is a 429 without one, which it never retries. InternetData's database API has no quota, so you won't see `quotaExceeded` from it.
-
 ### What `list` shows you
 
 Nothing here is cached, deliberately, and you should not cache it either: a listing belongs to the key that fetched it, and reusing one across keys will show an organization a catalog that is not its own.
-
-### Supplying your own transport
-
-By default the library talks to the API over [AsyncHTTPClient](https://github.com/swift-server/async-http-client), configured to refuse redirects. Anything conforming to `ClientTransport` can take its place. To use `URLSession` on an Apple platform, add [swift-openapi-urlsession](https://github.com/apple/swift-openapi-urlsession) to your own package and hand its transport in:
-
-```swift
-import OpenAPIURLSession
-
-let client = InternetDataClient(options: .init(apiKey: key, transport: URLSessionTransport()))
-```
-
-One thing to know if you do: the download endpoint answers `302`, and the library follows that redirect itself as a second request rather than letting the transport do it. That is what keeps your API key off object storage, and it is what stops a whole database being read into memory before the library ever sees the link. Configure yours not to follow redirects. The library refuses such a response rather than reading it, but the transfer has already started by then.
 
 ### Sign in with OAuth (device flow)
 
@@ -229,6 +348,29 @@ let registration = try await client.oauth.register(
 ```
 
 Each redirect URI must be https on a public host name, or http on a loopback address, which then matches any port. Nothing is kept until a person approves the client, so an app with no client ID saved can simply register again.
+
+### Absent is not false
+
+Unlimited leaves out `isVpn`, the proxy, hosting and CDN flags and the detail behind them, the Whois records and the paid members inside `location`, `asn`, `company` and `abuse`, such as `location.city`; a free-plan key's answer carries `trialExpired`, true once its daily trial is spent. Every member a plan can leave out is `Optional`, where `nil` means "not in your plan" rather than "checked, and no".
+
+```swift
+result.isHosting ?? false   // when you only want the flag
+result.isHosting == nil     // on Unlimited: not in your plan
+result.location.city == nil // the same, inside a shared object
+result.trialExpired == true // a free-plan key's daily trial is spent
+```
+
+### Supplying your own transport
+
+By default the library talks to the API over [AsyncHTTPClient](https://github.com/swift-server/async-http-client), configured to refuse redirects. Anything conforming to `ClientTransport` can take its place. To use `URLSession` on an Apple platform, add [swift-openapi-urlsession](https://github.com/apple/swift-openapi-urlsession) to your own package and hand its transport in:
+
+```swift
+import OpenAPIURLSession
+
+let client = InternetDataClient(options: .init(apiKey: key, transport: URLSessionTransport()))
+```
+
+One thing to know if you do: the download endpoint answers `302`, and the library follows that redirect itself as a second request rather than letting the transport do it. That is what keeps your API key off object storage, and it is what stops a whole database being read into memory before the library ever sees the link. Configure yours not to follow redirects. The library refuses such a response rather than reading it, but the transfer has already started by then.
 
 ## Other Libraries
 

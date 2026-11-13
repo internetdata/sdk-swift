@@ -234,6 +234,19 @@ extension TestOrigin.Answer {
     /// A whole empty listing, served in one piece.
     static var listing: Self { json(#"{"databases":[]}"#) }
 
+    /// A whole lookup answer for `9.9.9.9`, one byte every 2 ms: over a second in
+    /// all, and never more than 2 ms between two bytes.
+    static var trickledLookup: Self {
+        let answer = StubTransport.answer(for: "9.9.9.9")
+        let body = Array((try? JSONSerialization.data(withJSONObject: answer)) ?? Data())
+        return .init(
+            status: .ok,
+            headers: [("Content-Type", "application/json"), ("Content-Length", "\(body.count)")],
+            body: body,
+            trickle: .milliseconds(2),
+        )
+    }
+
     /// A whole empty listing, one byte every 20 ms: about a second in all, and
     /// never more than 20 ms between two bytes.
     static var trickledListing: Self {

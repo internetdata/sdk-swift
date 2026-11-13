@@ -544,10 +544,11 @@ struct ClientTests {
         )
         _ = try? await client.oauth.metadata()
         _ = try? await client.database.list()
+        _ = try? await client.lookup("9.9.9.9")
 
         #expect(url.absoluteString.hasPrefix(apex + "/oauth/authorize?"), "\(url)")
         let api = base.hasSuffix("/") ? String(base.dropLast()) : base
-        #expect(await stub.bases == [apex, api])
+        #expect(await stub.bases == [apex, api, api])
     }
 
     // The transport appends the request path to whatever path the base URL

@@ -215,9 +215,8 @@ enum ServedLocation {
 
 /// Presents the API key.
 ///
-/// `Authorization: Bearer` is the only scheme the v2 endpoints accept. The
-/// legacy v1 `?apikey=` credential put the key in a query string, where it lands
-/// in every access log between here and the origin.
+/// `Authorization: Bearer` of the three schemes the API accepts, because the
+/// other two put the key in a query string where it lands in access logs.
 struct AuthMiddleware: ClientMiddleware {
     let apiKey: String
 
@@ -305,13 +304,22 @@ let maxTimeout: Duration = .seconds(Int64.max / 2)
 ///
 /// Refused rather than trapped: a `precondition` crashes a caller's process over
 /// an argument it could have been handed back. Same shape as a per-call
-/// `concurrency` below 1 in the sibling client.
+/// `concurrency` below 1 in `lookupBatch`.
 func checkTimeout(_ timeout: Duration) throws {
     guard timeout > .zero, timeout <= maxTimeout else {
         throw InternetDataError(
             kind: .badRequest,
             message: "timeout must be positive and at most \(maxTimeout), got \(timeout)",
         )
+    }
+}
+
+/// Refuses a per-call retry count below zero, before anything is sent, so a
+/// bogon or a cached address cannot answer it. The client's own is a
+/// `precondition`, since its initializer cannot throw.
+func checkRetries(_ retries: Int) throws {
+    guard retries >= 0 else {
+        throw InternetDataError(kind: .badRequest, message: "retries cannot be negative, got \(retries)")
     }
 }
 

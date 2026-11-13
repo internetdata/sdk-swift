@@ -8,7 +8,8 @@ import OpenAPIRuntime
 /// the wait the API asked for rather than one the library invented.
 public struct InternetDataError: Error, Sendable, Hashable {
     public let kind: InternetDataErrorKind
-    /// The API's `rc` when it sent one, so a refusal says which refusal it is.
+    /// A lookup refusal's `error`, or a database refusal's `rc`, when the API
+    /// sent one, so a refusal says which refusal it is.
     public let message: String
     /// The HTTP status, or `nil` when the request never got an answer.
     public let status: Int?
@@ -95,6 +96,22 @@ extension InternetDataError {
         }
     }
 
+    /// A per-entry failure inside a successful batch: the status the single
+    /// lookup would have answered, and its message, with no headers at all - so
+    /// a 429 here is a spent allowance, which is the only kind the API puts in
+    /// an entry.
+    static func fromEntry(status: Int, message: String) -> InternetDataError {
+        from(status: status, headers: HTTPFields(), body: [], fallback: message)
+    }
+
+    /// A 2xx this call cannot read as its answer: retried like any other answer
+    /// the server got wrong.
+    static func unreadable(_ what: String, status: Int) -> InternetDataError {
+        InternetDataError(
+            kind: .serverError, message: "\(what) was not the answer this call returns", status: status,
+        )
+    }
+
     /// Reduces anything thrown beneath the idiomatic layer to one error type.
     ///
     /// The generated client wraps whatever the transport, a middleware or its
@@ -124,21 +141,24 @@ extension InternetDataError {
     }
 }
 
-// Every refusal this API sends carries `{"rc": "..."}`, and `rc` is deliberately
-// not an enum on the wire so a code added later stays parseable. It is read as
-// the message rather than mapped, because the classification comes from the
-// status and a caller who wants the exact code has it in `message`.
+// The two APIs behind this host answer with different envelopes: a lookup
+// refusal carries `error`, a database refusal `rc`. Both are read here so a
+// caller never has to know which one they hit. Neither is an enum on the wire,
+// so a code added later stays parseable, and the classification comes from the
+// status rather than from either.
 private func messageOf(_ body: ArraySlice<UInt8>) -> String? {
     guard !body.isEmpty,
         let envelope = try? JSONDecoder().decode(ErrorEnvelope.self, from: Data(body))
     else {
         return nil
     }
-    // An empty code says nothing, so it gives way to the fallback.
-    return envelope.rc.flatMap { $0.isEmpty ? nil : $0 }
+    // An empty message says nothing, so it gives way to the other member and
+    // then to the fallback.
+    return [envelope.error, envelope.rc].compactMap { $0 }.first { !$0.isEmpty }
 }
 
 private struct ErrorEnvelope: Decodable {
+    let error: String?
     let rc: String?
 }
 

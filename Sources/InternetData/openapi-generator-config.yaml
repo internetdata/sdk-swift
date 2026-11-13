@@ -4,8 +4,10 @@ generate:
 accessModifier: internal
 namingStrategy: idiomatic
 # v1 is legacy and customer-specific (a `?apikey=` query credential, a different
-# error vocabulary, no listing). Only the v2 tag is generated, so the wire types
-# in this package are the ones this client actually speaks.
+# error vocabulary, no listing), and IAM and OAuth are not wrapped or are
+# hand-written. Only the tags this client speaks are generated.
 filter:
   tags:
     - Database v2
+    - Lookup
+    - Entitlement
