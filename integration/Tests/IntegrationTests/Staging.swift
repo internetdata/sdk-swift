@@ -9,7 +9,19 @@ import Testing
 /// The staging fixtures the suite shares: the credential, one client, and the
 /// transport that proves what each request carried.
 
-let staging = URL(string: "https://staging.internetdata.io")!
+/// Staging's API, which answers the database calls as well as the lookups.
+let staging = URL(string: "https://api-staging.internetdata.io")!
+
+/// Where staging signs people in: the apex, which the oauth accessor derives
+/// from ``staging``.
+let stagingApex = URL(string: "https://staging.internetdata.io")!
+
+/// Production's API, for the lookups that need no key.
+let production = URL(string: "https://api.internetdata.io")!
+
+/// The address the README and the corpus look up: a VPN exit on a hosting
+/// network, so a full answer has something under its paid members.
+let probe = "146.70.116.130"
 
 /// The one credential the database tests need.
 ///

@@ -15,11 +15,13 @@ struct OauthTests {
 
     let client = InternetDataClient(options: .init(baseURL: staging))
 
-    @Test("metadata names staging as the issuer")
+    // The client is pointed at staging's API host, which serves no OAuth path, so
+    // this is also the accessor finding the apex on its own.
+    @Test("metadata names staging's apex as the issuer")
     func metadataNamesStaging() async throws {
         let metadata = try await client.oauth.metadata()
 
-        #expect(metadata.issuer == staging.absoluteString)
+        #expect(metadata.issuer == stagingApex.absoluteString)
         #expect(metadata.deviceAuthorizationEndpoint != nil)
         #expect(metadata.codeChallengeMethodsSupported?.contains("S256") == true)
     }

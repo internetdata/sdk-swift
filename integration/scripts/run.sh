@@ -28,7 +28,7 @@ cd "$(dirname "$0")/.."
 PACKAGE_URL="https://github.com/internetdata/sdk-swift.git"
 # Mirrors the range in Package.swift. Both are read by hand rather than parsed:
 # a manifest is Swift, and the gate has to run before anything is built.
-RANGE_LOW="2.3.0"
+RANGE_LOW="2.10.0"
 RANGE_HIGH="3.0.0"
 SECRET="INTERNETDATA_STAGING_KEY"
 
