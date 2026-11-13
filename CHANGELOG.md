@@ -2,6 +2,13 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.10.0 - 2026-11-13
+
+### Features
+
+- Default to api.internetdata.io, and sign in with OAuth at the apex ([`bd6b3bd`](https://github.com/internetdata/sdk-swift/commit/bd6b3bd3d2a9e7703a620ed91315b3f74af5bddc))
+- Look up an address, an AS or a domain, with a cache and a batch ([`e3cf673`](https://github.com/internetdata/sdk-swift/commit/e3cf6732b050cd1c68c97ba412aa756e8a8b3536))
+
 ## 2.9.2 - 2026-11-09
 
 ### Fixes
