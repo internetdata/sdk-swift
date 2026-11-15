@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.11.0 - 2026-11-15
+
+### Features
+
+- Read hosted_domains' 10 most popular domains ([`65ccbd5`](https://github.com/internetdata/sdk-swift/commit/65ccbd538cf85e2c74f0e0ae9212a29451fec818))
+
 ## 2.10.1 - 2026-11-14
 
 ### Fixes
