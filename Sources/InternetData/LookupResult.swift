@@ -439,10 +439,12 @@ public struct Rwhois: Sendable, Hashable {
     public let abuseEmail: String
 }
 
-/// From IP Hosted Domains: a count, never the list.
+/// From IP Hosted Domains: how many registered domains resolve to the address, and the 10 most popular.
 public struct HostedDomains: Sendable, Hashable {
     /// How many registered domains resolve to the address.
     public let total: Int
+    /// Up to 10 of them, the most popular first; empty when none does.
+    public let domains: [String]?
 }
 
 // The one place a served answer becomes the public shape. Absent-versus-false
@@ -492,7 +494,7 @@ extension LookupResult {
         self.abuse = AbuseContact(body.abuse)
         self.whois = body.whois.map(Whois.init)
         self.rwhois = body.rwhois.map(Rwhois.init)
-        self.hostedDomains = body.hostedDomains.map { HostedDomains(total: $0.total) }
+        self.hostedDomains = body.hostedDomains.map { HostedDomains(total: $0.total, domains: $0.domains) }
         self.trialExpired = body.trialExpired
     }
 }

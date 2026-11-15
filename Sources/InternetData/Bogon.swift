@@ -56,7 +56,7 @@ extension LookupResult {
             pubproxy: .empty, hosting: .empty, cdn: .empty, carrier: .empty, satellite: .empty, ssh: .empty,
             smtp: .empty, web: [], dnsResolver: .empty, bittorrent: .empty,
             location: .empty, asn: .empty, company: .empty, hostname: "", abuse: .empty,
-            whois: .empty, rwhois: .empty, hostedDomains: HostedDomains(total: 0), trialExpired: nil,
+            whois: .empty, rwhois: .empty, hostedDomains: HostedDomains(total: 0, domains: []), trialExpired: nil,
         )
     }
 }

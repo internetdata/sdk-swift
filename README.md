@@ -45,7 +45,7 @@ print(result.isTor)              // false
 
 ### With an API key
 
-Every paid plan answers every field: the VPN, proxy, hosting and CDN flags and the provider and confidence behind each, the city and the coordinates, the Whois records and the hosted domain count. The plans differ only in how many lookups they include, and a free account tries every field, 100 lookups a day. Create a key in the [console](https://app.internetdata.io), then pass it in:
+Every paid plan answers every field: the VPN, proxy, hosting and CDN flags and the provider and confidence behind each, the city and the coordinates, the Whois records, and the hosted domains, a count and the 10 most popular. The plans differ only in how many lookups they include, and a free account tries every field, 100 lookups a day. Create a key in the [console](https://app.internetdata.io), then pass it in:
 
 ```swift
 let client = InternetDataClient(apiKey: ProcessInfo.processInfo.environment["INTERNETDATA_API_KEY"]!)

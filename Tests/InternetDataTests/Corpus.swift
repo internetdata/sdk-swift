@@ -205,12 +205,20 @@ extension LookupResult {
             "cdn": cdn?.wire, "carrier": carrier?.wire, "satellite": satellite?.wire, "ssh": ssh?.wire,
             "smtp": smtp?.wire, "web": web.map { .array($0.map(\.wire)) },
             "dns_resolver": dnsResolver?.wire, "bittorrent": bittorrent?.wire, "whois": whois?.wire,
-            "rwhois": rwhois?.wire, "hosted_domains": hostedDomains.map { .object(["total": .int($0.total)]) },
+            "rwhois": rwhois?.wire, "hosted_domains": hostedDomains?.wire,
         ]
         for case (let name, let object?) in objects {
             fields[name] = object
         }
         return JSONValue.object(fields).normalized
+    }
+}
+
+extension HostedDomains {
+    var wire: JSONValue {
+        var members: [String: JSONValue] = ["total": .int(total)]
+        domains.map { members["domains"] = .array($0.map { .string($0) }) }
+        return .object(members)
     }
 }
 
