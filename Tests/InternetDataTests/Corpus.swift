@@ -238,6 +238,22 @@ extension AsnLookupResult {
         }
         whois.map { fields["whois"] = .object($0.mapValues { .string($0) }) }
         prefixes.map { fields["prefixes"] = .array($0.map(\.wire)) }
+        let neighbors: [String: Int?] = [
+            "rank": rank, "num_upstreams": numUpstreams, "num_peers": numPeers, "num_downstreams": numDownstreams,
+        ]
+        for case (let name, let count?) in neighbors {
+            fields[name] = .int(count)
+        }
+        let lists: [String: [Int]?] = ["upstreams": upstreams, "peers": peers, "downstreams": downstreams]
+        for case (let name, let list?) in lists {
+            fields[name] = .array(list.map { .int($0) })
+        }
+        tier1.map { fields["tier1"] = .bool($0) }
+        hostedDomains.map { hosted in
+            var members: [String: JSONValue] = ["total": .int(hosted.total)]
+            hosted.domains.map { members["domains"] = .array($0.map { .string($0) }) }
+            fields["hosted_domains"] = .object(members)
+        }
         trialExpired.map { fields["trial_expired"] = .bool($0) }
         return JSONValue.object(fields).normalized
     }

@@ -82,13 +82,14 @@ print(domain.isRegistered)       // true
 print(domain.dns?.mx.first?.host) // on a paid plan
 ```
 
-A paid plan adds an AS's Whois record and the prefixes it announces, and a domain's DNS records, its organization's IP ranges and whether it's a disposable email domain. Neither is cached or batched, and `lookup` takes an address alone: it refuses an AS or a domain as `badRequest` before sending anything.
+A paid plan adds an AS's Whois record, the prefixes it announces, its rank, Tier 1 flag, upstreams, peers and downstreams, and the domains it hosts, and a domain's DNS records, its organization's IP ranges and whether it's a disposable email domain. Neither is cached or batched, and `lookup` takes an address alone: it refuses an AS or a domain as `badRequest` before sending anything.
 
 ### Your plan and usage
 
 ```swift
 let acct = try await client.myEntitlement()
 print(acct.plan.key)          // max
+print(acct.plan.name)         // Max, the name to show
 print(acct.usage.requests)    // 580
 print(acct.usage.windowEnd)   // when the allowance resets
 ```
@@ -260,7 +261,7 @@ The API answers a download with a `302` to a time-limited link that carries its 
 let url = try await client.database.downloadURL(id: "vpn_ip_v1", format: .mmdb)
 ```
 
-The link authorizes the START of a transfer, so one already running is not interrupted when it lapses.
+The link only has to be valid when a transfer starts, so one already running isn't cut off when it lapses.
 
 ### Downloading a named build
 

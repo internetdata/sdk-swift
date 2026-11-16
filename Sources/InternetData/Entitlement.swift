@@ -26,8 +26,13 @@ public struct Entitlement: Sendable, Hashable {
 
     /// The plan behind the key, and the field tier it buys.
     public struct Plan: Sendable, Hashable {
-        /// The plan the organization is on, e.g. `max`.
+        /// The plan the organization is on, as an identifier that is never
+        /// renamed or reused: `free` for the free plan, or a paid plan's key.
+        /// Compare against it, and show ``name``.
         public let key: String
+        /// The plan's name as the site and console show it: `Unlimited` for the
+        /// free plan. Show this rather than a name built from ``key``.
+        public let name: String
         /// The field tier, which decides how much of a lookup answer comes back.
         public let tier: Tier
 
@@ -81,6 +86,7 @@ extension Entitlement.Apikey {
 extension Entitlement.Plan {
     init(_ wire: Components.Schemas.EntitlementPlan) {
         self.key = wire.key
+        self.name = wire.name
         self.tier = Tier(wire.tier)
     }
 }

@@ -1,5 +1,6 @@
 /// What an AS lookup answers: its registration on every plan, and on a paid one
-/// its ASN Whois record and every prefix it announces in global BGP.
+/// its ASN Whois record, every prefix it announces in global BGP, its rank and
+/// neighbors from ASN Extended, and the domains it hosts.
 ///
 /// An optional member is one your plan does not include, never "we could not
 /// check". An AS no database knows answers its number with empty values.
@@ -36,9 +37,39 @@ public struct AsnLookupResult: Sendable, Hashable {
     /// What it announces, IPv4 then IPv6, up to 20000 a family. Paid plans and
     /// the trial.
     public let prefixes: [AsnPrefix]?
+    /// Its rank in ASN Extended by customer cone, 1 the largest; 0 for an AS
+    /// seen in no AS path. Paid plans and the trial.
+    public let rank: Int?
+    /// Whether it is one of the transit-free networks at the top of the
+    /// hierarchy. Paid plans and the trial.
+    public let tier1: Bool?
+    /// How many AS numbers it gets transit from. Paid plans and the trial.
+    public let numUpstreams: Int?
+    /// Those AS numbers, ascending, up to 20000. Paid plans and the trial.
+    public let upstreams: [Int]?
+    /// How many AS numbers it exchanges its own and its customers' routes with.
+    /// Paid plans and the trial.
+    public let numPeers: Int?
+    /// Those AS numbers, ascending, up to 20000. Paid plans and the trial.
+    public let peers: [Int]?
+    /// How many AS numbers it provides transit to. Paid plans and the trial.
+    public let numDownstreams: Int?
+    /// Those AS numbers, ascending, up to 20000. Paid plans and the trial.
+    public let downstreams: [Int]?
+    /// How many registered domains it hosts, and the 10 most popular. Paid plans
+    /// and the trial.
+    public let hostedDomains: AsnHostedDomains?
     /// On answers to a key on the free plan only: `false` while its organization's
     /// daily trial of every field lasts, `true` once the answer has Unlimited's.
     public let trialExpired: Bool?
+}
+
+/// From ASN Hosted Domains: how many registered domains the AS hosts, and the 10 most popular.
+public struct AsnHostedDomains: Sendable, Hashable {
+    /// How many registered domains resolve to an address the AS announces.
+    public let total: Int
+    /// Up to 10 of them, the most popular first; empty when none does.
+    public let domains: [String]?
 }
 
 /// One prefix an AS announces.
@@ -76,6 +107,15 @@ extension AsnLookupResult {
         self.rpkiNotFound = wire.rpkiNotFound
         self.whois = wire.whois?.additionalProperties
         self.prefixes = wire.prefixes?.map(AsnPrefix.init)
+        self.rank = wire.rank
+        self.tier1 = wire.tier1
+        self.numUpstreams = wire.numUpstreams
+        self.upstreams = wire.upstreams
+        self.numPeers = wire.numPeers
+        self.peers = wire.peers
+        self.numDownstreams = wire.numDownstreams
+        self.downstreams = wire.downstreams
+        self.hostedDomains = wire.hostedDomains.map { AsnHostedDomains(total: $0.total, domains: $0.domains) }
         self.trialExpired = wire.trialExpired
     }
 }

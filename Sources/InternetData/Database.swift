@@ -123,8 +123,8 @@ public struct DatabaseAPI: Sendable {
     /// The API answers `302` to object storage, and the link carries its own
     /// signature, so this is a download URL you can hand to something that holds
     /// no API key at all. It is returned rather than the bytes so you decide how
-    /// to transfer a file that runs to gigabytes; the link authorizes the START
-    /// of a transfer, so one already running is not interrupted when it lapses.
+    /// to transfer a file that runs to gigabytes. The link only has to be valid
+    /// when a transfer starts, so one already running isn't cut off when it lapses.
     ///
     /// The default transport refuses redirects outright. If you supplied your
     /// own and it follows them, this throws rather than handing back a URL,

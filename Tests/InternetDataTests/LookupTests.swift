@@ -522,6 +522,7 @@ struct LookupTests {
 
         #expect(ent.plan.key == "max")
         #expect(ent.plan.tier == .max)
+        #expect(ent.plan.name == "Max")
         #expect(ent.usage.requests == 580)
         #expect(ent.usage.quota == 5_000_000)
         // nil means NEVER stop, which is not the same as a limit of zero.
@@ -593,7 +594,7 @@ extension LookupTests {
             "expires": NSNull(),
             "allowed_cidrs": [String](),
         ],
-        "plan": ["key": "max", "tier": "max"],
+        "plan": ["key": "max", "name": "Max", "tier": "max"],
         "usage": [
             "requests": 580,
             "quota": 5_000_000,
