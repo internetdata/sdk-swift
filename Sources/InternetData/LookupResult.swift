@@ -91,6 +91,10 @@ public struct LookupResult: Sendable, Hashable {
     /// On answers to a key on the free plan only: `false` while its organization's
     /// daily trial of every field lasts, `true` once the answer has Unlimited's.
     public let trialExpired: Bool?
+    /// On answers to a key on a paid plan only: `false` while the answer has every
+    /// field, `true` once its organization's overage cap is reached and the answer has
+    /// Unlimited's. Lookups answered past the cap are not billed.
+    public let capReached: Bool?
 }
 
 /// The detail shape of the VPN, Tor, Relay, Hosting and CDN databases.
@@ -496,6 +500,7 @@ extension LookupResult {
         self.rwhois = body.rwhois.map(Rwhois.init)
         self.hostedDomains = body.hostedDomains.map { HostedDomains(total: $0.total, domains: $0.domains) }
         self.trialExpired = body.trialExpired
+        self.capReached = body.capReached
     }
 }
 

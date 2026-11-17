@@ -194,7 +194,7 @@ extension LookupResult {
         let flags: [String: Bool?] = [
             "is_vpn": isVpn, "is_resproxy": isResproxy, "is_dcproxy": isDcproxy,
             "is_mobproxy": isMobproxy, "is_pubproxy": isPubproxy, "is_hosting": isHosting,
-            "is_cdn": isCdn, "trial_expired": trialExpired,
+            "is_cdn": isCdn, "trial_expired": trialExpired, "cap_reached": capReached,
         ]
         for case (let name, let flag?) in flags {
             fields[name] = .bool(flag)
@@ -255,6 +255,7 @@ extension AsnLookupResult {
             fields["hosted_domains"] = .object(members)
         }
         trialExpired.map { fields["trial_expired"] = .bool($0) }
+        capReached.map { fields["cap_reached"] = .bool($0) }
         return JSONValue.object(fields).normalized
     }
 }
@@ -316,6 +317,7 @@ extension DomainLookupResult {
             fields["disposable"] = .object(members)
         }
         trialExpired.map { fields["trial_expired"] = .bool($0) }
+        capReached.map { fields["cap_reached"] = .bool($0) }
         return JSONValue.object(fields).normalized
     }
 }

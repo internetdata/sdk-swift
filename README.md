@@ -181,7 +181,7 @@ do {
 
 `kind` is one of `badRequest`, `unauthorized`, `forbidden`, `rateLimited`, `quotaExceeded`, `serverError` or `network`. A database call's `message` is the API's `rc`, such as `NOT_LICENSED`.
 
-Note that `rateLimited` and `quotaExceeded` both arrive as HTTP 429 and are not the same thing. A rate limit carries `Retry-After`, so retrying later works; but a spent quota needs your allowance raised or the window to roll over. The library retries rate limits for you, waiting as long as the API asks, but not if your quota is exceeded.
+Note that `rateLimited` and `quotaExceeded` both arrive as HTTP 429 and are not the same thing. A rate limit carries `Retry-After`, so retrying later works; but one without it is `quotaExceeded`. The library retries rate limits for you, waiting as long as the API asks, but never `quotaExceeded`. The API itself always sends `Retry-After` with a 429, so that one comes from something in between, such as a proxy; a paid key past its overage cap gets `capReached` instead.
 
 Each attempt is abandoned after 30 seconds by default (`timeout` on the options), which fails as a retryable `network` error. A download is timed only until object storage starts answering, so a large file is never cut off. One call can set its own, longer or shorter - `lookup`, `myIP`, `lookupASN`, `lookupDomain`, `myEntitlement`, a batch, every `oauth` method, and every `client.database` call but the transfers:
 
@@ -352,13 +352,14 @@ Each redirect URI must be https on a public host name, or http on a loopback add
 
 ### Absent is not false
 
-Unlimited leaves out `isVpn`, the proxy, hosting and CDN flags and the detail behind them, the Whois records and the paid members inside `location`, `asn`, `company` and `abuse`, such as `location.city`; a free-plan key's answer carries `trialExpired`, true once its daily trial is spent. Every member a plan can leave out is `Optional`, where `nil` means "not in your plan" rather than "checked, and no".
+Unlimited leaves out `isVpn`, the proxy, hosting and CDN flags and the detail behind them, the Whois records and the paid members inside `location`, `asn`, `company` and `abuse`, such as `location.city`; a free-plan key's answer carries `trialExpired`, true once its daily trial is spent. A paid key's carries `capReached`, true once its organization's overage cap is reached, when the answer has Unlimited's fields and isn't billed. Every member a plan can leave out is `Optional`, where `nil` means "not in your plan" rather than "checked, and no".
 
 ```swift
 result.isHosting ?? false   // when you only want the flag
 result.isHosting == nil     // on Unlimited: not in your plan
 result.location.city == nil // the same, inside a shared object
 result.trialExpired == true // a free-plan key's daily trial is spent
+result.capReached == true   // a paid key is past its overage cap
 ```
 
 ### Supplying your own transport

@@ -57,6 +57,7 @@ extension LookupResult {
             smtp: .empty, web: [], dnsResolver: .empty, bittorrent: .empty,
             location: .empty, asn: .empty, company: .empty, hostname: "", abuse: .empty,
             whois: .empty, rwhois: .empty, hostedDomains: HostedDomains(total: 0, domains: []), trialExpired: nil,
+            capReached: nil,
         )
     }
 }

@@ -28,6 +28,10 @@ public struct DomainLookupResult: Sendable, Hashable {
     /// On answers to a key on the free plan only: `false` while its organization's
     /// daily trial of every field lasts, `true` once the answer has Unlimited's.
     public let trialExpired: Bool?
+    /// On answers to a key on a paid plan only: `false` while the answer has every
+    /// field, `true` once its organization's overage cap is reached and the answer has
+    /// Unlimited's. Lookups answered past the cap are not billed.
+    public let capReached: Bool?
 }
 
 /// A domain's records in Domain DNS, up to 100 a type.
@@ -117,6 +121,7 @@ extension DomainLookupResult {
         self.ipRanges = body.ipRanges.map(DomainIpRanges.init)
         self.disposable = body.disposable.map { DisposableDetail($0.value1) }
         self.trialExpired = body.trialExpired
+        self.capReached = body.capReached
     }
 }
 
