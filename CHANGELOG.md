@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.13.0 - 2026-11-17
+
+### Features
+
+- Read cap_reached on a paid answer past its overage cap ([`5843940`](https://github.com/internetdata/sdk-swift/commit/584394046a7242c9c3e6a16c086caad15b19f8a8))
+
 ## 2.12.0 - 2026-11-16
 
 ### Features
