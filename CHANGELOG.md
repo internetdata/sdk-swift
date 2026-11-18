@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.13.1 - 2026-11-18
+
+### Fixes
+
+- Re-pin the spec to 2026.11.17 as republished: KEY_OVER_HTTP on the account 403 ([`f24a389`](https://github.com/internetdata/sdk-swift/commit/f24a38929097fb583ddadbbeff79a3590eb87185))
+
 ## 2.13.0 - 2026-11-17
 
 ### Features
