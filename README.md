@@ -30,7 +30,7 @@ Requires Swift 6.1 or newer, and macOS 13, iOS 16, tvOS 16, watchOS 9 or visionO
 
 ## Usage
 
-**No API key needed to start.** Unlimited, the free plan, answers the address's country, its AS, who uses it, its reverse DNS name and abuse contact, and the Tor, relay, anycast, carrier, satellite and services flags, limited per address per minute.
+**No API key needed to start.** Unlimited, the free plan, answers the address's country, its AS, who uses it, its reverse DNS name and abuse contact, and the Tor, relay, anycast, carrier, satellite and services flags, with no daily or monthly cap.
 
 ```swift
 import InternetData
