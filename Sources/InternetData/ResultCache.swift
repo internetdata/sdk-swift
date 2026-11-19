@@ -4,7 +4,8 @@ import Foundation
 public struct CacheOptions: Sendable, Hashable {
     /// Maximum number of addresses held. Default 10000.
     public var maxEntries: Int
-    /// How long an answer stays fresh. Default 1 hour.
+    /// How long an answer stays fresh. Default 1 hour. An answer marked
+    /// `trialExpired` or `capReached` stays at most a minute.
     public var ttl: Duration
 
     public init(maxEntries: Int = 10_000, ttl: Duration = .seconds(3600)) {
@@ -58,19 +59,37 @@ actor ResultCache {
     }
 
     func set(_ ip: String, _ result: LookupResult) {
+        let expires = ContinuousClock.now.advanced(by: life(of: result))
         if let existing = entries[ip] {
             existing.result = result
-            existing.expires = ContinuousClock.now.advanced(by: ttl)
+            existing.expires = expires
             promote(existing)
             return
         }
-        let node = Node(ip: ip, result: result, expires: ContinuousClock.now.advanced(by: ttl))
+        let node = Node(ip: ip, result: result, expires: expires)
         entries[ip] = node
         prepend(node)
         if entries.count > maxEntries, let oldest = tail {
             remove(oldest)
         }
     }
+
+    /// When the answer held for `ip` goes stale, or nil when none is held.
+    func expiry(_ ip: String) -> ContinuousClock.Instant? {
+        entries[ip]?.expires
+    }
+
+    // A reduced answer, a spent trial's or a reached cap's, ends with a new UTC
+    // day or a raised cap, so it stays a minute at most rather than the TTL. It
+    // is still cached, or a busy process would send every repeat to the API.
+    private func life(of result: LookupResult) -> Duration {
+        guard result.trialExpired == true || result.capReached == true else {
+            return ttl
+        }
+        return min(ttl, Self.reducedTTL)
+    }
+
+    static let reducedTTL: Duration = .seconds(60)
 
     /// The answer to `ip` if it is fresh, or else whether this caller sends the
     /// request (``Claim/lead(_:)``, landed with ``land(_:_:_:)``) or waits for the
