@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.13.2 - 2026-11-19
+
+### Fixes
+
+- Cache a spent trial's or a reached cap's answer for a minute at most ([`53cb50d`](https://github.com/internetdata/sdk-swift/commit/53cb50da352c4c59c89577d1627dc03c1515e587))
+
 ## 2.13.1 - 2026-11-18
 
 ### Fixes
