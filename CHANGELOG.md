@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.13.3 - 2026-11-20
+
+### Fixes
+
+- Re-pin the spec to 2026.11.20: the free trial without a count or period ([`690ce51`](https://github.com/internetdata/sdk-swift/commit/690ce51de1020fde77078f615441642d984fcd6e))
+
 ## 2.13.2 - 2026-11-19
 
 ### Fixes
