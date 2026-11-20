@@ -98,7 +98,7 @@ struct KeylessLookupTests {
 }
 
 /// The staging key's lookups. Its organization is on the free plan, so an
-/// answer is a paid one for the day's trial and Unlimited's after it, carrying
+/// answer is a paid one while its trial lasts and Unlimited's after it, carrying
 /// `trialExpired` either way; nothing here depends on which.
 @Suite("Lookups with the staging key")
 struct KeyedLookupTests {

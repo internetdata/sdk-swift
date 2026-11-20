@@ -89,7 +89,7 @@ public struct LookupResult: Sendable, Hashable {
     public let rwhois: Rwhois?
     public let hostedDomains: HostedDomains?
     /// On answers to a key on the free plan only: `false` while its organization's
-    /// daily trial of every field lasts, `true` once the answer has Unlimited's.
+    /// trial of every field lasts, `true` once the answer has Unlimited's.
     public let trialExpired: Bool?
     /// On answers to a key on a paid plan only: `false` while the answer has every
     /// field, `true` once its organization's overage cap is reached and the answer has

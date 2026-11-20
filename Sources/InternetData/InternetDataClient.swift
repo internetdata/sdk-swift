@@ -296,7 +296,7 @@ public struct InternetDataClient: Sendable {
     ///
     /// Usage counts against the ALLOWANCE WINDOW - on a paid plan the
     /// anniversary of the subscription, not the calendar month and not the
-    /// billing period, and on the free plan the UTC day - and it is the same
+    /// billing period, and on the free plan its trial - and it is the same
     /// number a lookup is gated on. It can lag by a few seconds, because
     /// requests are counted in memory and flushed in aggregate.
     ///
@@ -606,7 +606,7 @@ extension InternetDataClient {
     /// API key against production.
     public struct Options: Sendable {
         /// Your API key. Without one a lookup is on Unlimited, the free plan,
-        /// limited per address per minute. Every paid plan answers every field,
+        /// with no daily or monthly cap. Every paid plan answers every field,
         /// and a batch needs one. A database call needs a key carrying the
         /// `db.download` scope; ``InternetDataClient/oauth`` takes none.
         public var apiKey: String?
