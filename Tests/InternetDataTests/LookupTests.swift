@@ -54,7 +54,7 @@ struct LookupTests {
 
     @Test("a rate limit is retried after the server-supplied wait")
     func rateLimitWaitsForRetryAfter() async throws {
-        var route = StubTransport.Route.json(["error": "per-minute limit exceeded"], status: 429)
+        var route = StubTransport.Route.json(["error": "rate limit exceeded"], status: 429)
         route.headers = ["Retry-After": "1"]
         let stub = StubTransport(["9.9.9.9": route])
         let client = client(stub, cache: nil, retries: 1)
