@@ -297,6 +297,15 @@ extension DomainLookupResult {
                 }),
             ])
         }
+        hosting.map { hosts in
+            fields["hosting"] = .array(hosts.map { .object(["ip": .string($0.ip), "asn": $0.asn.wire]) })
+        }
+        cohostedDomains.map { cohosted in
+            fields["cohosted_domains"] = .object([
+                "ip": .string(cohosted.ip), "total": .int(cohosted.total),
+                "domains": .array(cohosted.domains.map { .string($0) }),
+            ])
+        }
         ipRanges.map { ranges in
             fields["ip_ranges"] = .object([
                 "domain": .string(ranges.domain), "redirects_to": .string(ranges.redirectsTo),
@@ -316,6 +325,20 @@ extension DomainLookupResult {
             detail.lastSeen.map { members["last_seen"] = .string($0) }
             fields["disposable"] = .object(members)
         }
+        web.map { web in
+            fields["web"] = .object([
+                "url": .string(web.url), "title": .string(web.title), "description": .string(web.description),
+                "last_seen": .string(web.lastSeen),
+                "links": .object([
+                    "total": .int(web.links.total), "hosts": .array(web.links.hosts.map { .string($0) }),
+                ]),
+            ])
+        }
+        let counted = { (total: Int, domains: [String]) in
+            JSONValue.object(["total": .int(total), "domains": .array(domains.map { .string($0) })])
+        }
+        redirects.map { fields["redirects"] = counted($0.total, $0.domains) }
+        backlinks.map { fields["backlinks"] = counted($0.total, $0.domains) }
         trialExpired.map { fields["trial_expired"] = .bool($0) }
         capReached.map { fields["cap_reached"] = .bool($0) }
         return JSONValue.object(fields).normalized

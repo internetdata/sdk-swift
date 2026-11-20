@@ -415,6 +415,82 @@ struct LookupTests {
         await #expect(stub.callCount == 4)
     }
 
+    @Test("a paid domain answer reads its hosting, co-hosted domains, home page, redirects and backlinks")
+    func aPaidDomainAnswerReadsItsNetworkAndLinks() async throws {
+        var paid = Self.domainAnswer
+        paid["hosting"] = [
+            [
+                "ip": "192.0.2.10",
+                "asn": [
+                    "asn": 64496, "name": "EXAMPLE-AS", "domain": "example.net", "type": "hosting",
+                    "prefix": "192.0.2.0/24", "country": "US", "rpki_status": "valid",
+                ],
+            ],
+        ]
+        paid["cohosted_domains"] = ["ip": "192.0.2.10", "total": 3, "domains": ["example.net"]]
+        paid["web"] = [
+            "url": "https://example.com/", "title": "Example Domain", "description": "", "last_seen": "2026-11-18",
+            "links": ["total": 1, "hosts": ["www.iana.org"]],
+        ]
+        paid["redirects"] = ["total": 2, "domains": ["example.org"]]
+        paid["backlinks"] = ["total": 7, "domains": ["docs.example"]]
+        let stub = StubTransport(["domain/example.com": .json(paid), "domain/example.org": .json(Self.domainAnswer)])
+
+        let domain = try await client(stub).lookupDomain("example.com")
+        let host = try #require(domain.hosting?.first)
+        #expect(host.ip == "192.0.2.10" && host.asn.asn == 64496 && host.asn.prefix == "192.0.2.0/24")
+        #expect(host.asn.rpkiStatus == "valid")
+        #expect(domain.cohostedDomains == CohostedDomains(ip: "192.0.2.10", total: 3, domains: ["example.net"]))
+        let web = DomainWeb(
+            url: "https://example.com/", title: "Example Domain", description: "", lastSeen: "2026-11-18",
+            links: DomainWebLinks(total: 1, hosts: ["www.iana.org"])
+        )
+        #expect(domain.web == web)
+        #expect(domain.redirects == DomainRedirects(total: 2, domains: ["example.org"]))
+        #expect(domain.backlinks == DomainBacklinks(total: 7, domains: ["docs.example"]))
+
+        let unlimited = try await client(stub).lookupDomain("example.org")
+        #expect(unlimited.hosting == nil && unlimited.cohostedDomains == nil && unlimited.web == nil)
+        #expect(unlimited.redirects == nil && unlimited.backlinks == nil)
+
+        func changed(_ name: String, _ value: Any) -> [String: Any] {
+            var body = paid
+            body[name] = value
+            return body
+        }
+        let unreadable: [(String, [String: Any])] = [
+            ("hosting of [null]", changed("hosting", [NSNull()])),
+            ("hosting entry without asn", changed("hosting", [["ip": "192.0.2.10"]])),
+            ("cohosted_domains.total of \"3\"", changed("cohosted_domains", ["ip": "", "total": "3", "domains": []])),
+            (
+                "cohosted_domains.domains of [null]",
+                changed("cohosted_domains", ["ip": "", "total": 0, "domains": [NSNull()]])
+            ),
+            (
+                "web without last_seen",
+                changed("web", ["url": "", "title": "", "description": "", "links": ["total": 0, "hosts": []]])
+            ),
+            (
+                "web.links.hosts of a string",
+                changed(
+                    "web",
+                    ["url": "", "title": "", "description": "", "last_seen": "", "links": ["total": 0, "hosts": "x"]]
+                )
+            ),
+            ("redirects.total of null", changed("redirects", ["total": NSNull(), "domains": []])),
+            ("backlinks without domains", changed("backlinks", ["total": 0])),
+        ]
+        for (name, body) in unreadable {
+            let stub = StubTransport(["domain/example.com": .json(body)])
+            let failure = await #expect(throws: InternetDataError.self) {
+                try await client(stub, retries: 1).lookupDomain("example.com")
+            }
+            #expect(try #require(failure).kind == .serverError, "\(name)")
+            #expect(try #require(failure).status == 200, "\(name)")
+            await #expect(stub.callCount == 2, "\(name)")
+        }
+    }
+
     // A batch asks about addresses alone; the API's `asns` and `domains` stay
     // unwrapped.
     @Test("a batch body carries the addresses and nothing else")

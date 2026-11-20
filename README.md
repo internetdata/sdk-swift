@@ -82,7 +82,7 @@ print(domain.isRegistered)       // true
 print(domain.dns?.mx.first?.host) // on a paid plan
 ```
 
-A paid plan adds an AS's Whois record, the prefixes it announces, its rank, Tier 1 flag, upstreams, peers and downstreams, and the domains it hosts, and a domain's DNS records, its organization's IP ranges and whether it's a disposable email domain. Neither is cached or batched, and `lookup` takes an address alone: it refuses an AS or a domain as `badRequest` before sending anything.
+A paid plan adds an AS's Whois record, the prefixes it announces, its rank, Tier 1 flag, upstreams, peers and downstreams, and the domains it hosts, and a domain's DNS records, the network announcing each of its addresses, the other domains on its first IPv4 address, its organization's IP ranges, whether it's a disposable email domain, what its home page says and links to, and the domains whose home page redirects or links to it. Neither is cached or batched, and `lookup` takes an address alone: it refuses an AS or a domain as `badRequest` before sending anything.
 
 ### Your plan and usage
 
