@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 2.14.0 - 2026-11-20
+
+### Features
+
+- Read a paid domain answer's hosting, co-hosted domains, home page, redirects and backlinks ([`6f9bcd4`](https://github.com/internetdata/sdk-swift/commit/6f9bcd49b7a07940afe16e0b8f9ad01d277eecdf))
+
 ## 2.13.3 - 2026-11-20
 
 ### Fixes
