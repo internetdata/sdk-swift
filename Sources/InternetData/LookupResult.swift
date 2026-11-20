@@ -371,9 +371,9 @@ public struct Asn: Sendable, Hashable {
     public let type: String
     /// The announced prefix covering the address.
     public let prefix: String
-    /// The country its registry assigned it to. Paid plans and the trial.
+    /// The country its registry assigned it to.
     public let country: String?
-    /// The announcement's RPKI status. Paid plans and the trial.
+    /// The announcement's RPKI status.
     public let rpkiStatus: String?
 }
 

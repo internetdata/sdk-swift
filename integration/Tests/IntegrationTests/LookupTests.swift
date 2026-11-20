@@ -172,7 +172,7 @@ func assertUnlimited(_ result: LookupResult, _ host: URL) {
         "is_vpn": result.isVpn != nil, "is_hosting": result.isHosting != nil, "is_cdn": result.isCdn != nil,
         "is_resproxy": result.isResproxy != nil, "vpn": result.vpn != nil, "hosting": result.hosting != nil,
         "web": result.web != nil, "whois": result.whois != nil, "hosted_domains": result.hostedDomains != nil,
-        "location.city": result.location.city != nil, "asn.rpki_status": result.asn.rpkiStatus != nil,
+        "location.city": result.location.city != nil,
         "company.type": result.company.type != nil, "abuse.phone": result.abuse.phone != nil,
         "trial_expired": result.trialExpired != nil,
     ]
