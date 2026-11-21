@@ -2,6 +2,16 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 3.0.0 - 2026-11-21
+
+### Breaking changes
+
+- Hand back a tier, standing, license type, format or outcome the API adds ([`a445a4b`](https://github.com/internetdata/sdk-swift/commit/a445a4b7cff3ba111b0d0ff1359dd488a8b4dab8))
+
+### Features
+
+- Name the SDK and its version in every request's User-Agent ([`6a0c253`](https://github.com/internetdata/sdk-swift/commit/6a0c2531c42262555daa8dfc314e1d5acc7fe969))
+
 ## 2.14.0 - 2026-11-20
 
 ### Features
