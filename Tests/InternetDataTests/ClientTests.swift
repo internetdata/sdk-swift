@@ -340,7 +340,7 @@ struct ClientTests {
         #expect(attempt.userAgent == "InternetData Swift")
         #expect(attempt.created.timeIntervalSince1970 > 0)
         // Refusals are listed too, so `bytes` and `http_status` are nullable.
-        #expect(Download.Outcome.allCases.contains(.denied))
+        #expect(Download.Outcome.known.contains(.denied))
     }
 
     @Test("the checksum endpoint answers the whole digest set")

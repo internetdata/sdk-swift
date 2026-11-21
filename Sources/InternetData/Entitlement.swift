@@ -39,12 +39,21 @@ public struct Entitlement: Sendable, Hashable {
         /// How much of a lookup answer comes back.
         ///
         /// What each tier includes is documented on the lookup endpoint rather
-        /// than repeated here, so there is one place it can be wrong.
-        public enum Tier: String, Sendable, Hashable, CaseIterable {
-            case free
-            case starter
-            case scale
-            case max
+        /// than repeated here, so there is one place it can be wrong. A tier
+        /// this release was not built with reads as served.
+        public struct Tier: Vocabulary {
+            public let rawValue: String
+
+            public init(rawValue: String) {
+                self.rawValue = rawValue
+            }
+
+            public static let free = Tier(rawValue: "free")
+            public static let starter = Tier(rawValue: "starter")
+            public static let scale = Tier(rawValue: "scale")
+            public static let max = Tier(rawValue: "max")
+
+            public static let known: [Tier] = [.free, .starter, .scale, .max]
         }
     }
 
@@ -67,10 +76,10 @@ public struct Entitlement: Sendable, Hashable {
 }
 
 extension Entitlement {
-    init(_ wire: Components.Schemas.Entitlement) {
+    init(_ wire: Components.Schemas.Entitlement) throws {
         self.orgID = wire.orgId
         self.apikey = Apikey(wire.apikey)
-        self.plan = Plan(wire.plan)
+        self.plan = try Plan(wire.plan)
         self.usage = Usage(wire.usage)
     }
 }
@@ -84,21 +93,10 @@ extension Entitlement.Apikey {
 }
 
 extension Entitlement.Plan {
-    init(_ wire: Components.Schemas.EntitlementPlan) {
+    init(_ wire: WireEntitlementPlan) throws {
         self.key = wire.key
         self.name = wire.name
-        self.tier = Tier(wire.tier)
-    }
-}
-
-extension Entitlement.Plan.Tier {
-    init(_ wire: Components.Schemas.EntitlementPlan.TierPayload) {
-        switch wire {
-        case .free: self = .free
-        case .starter: self = .starter
-        case .scale: self = .scale
-        case .max: self = .max
-        }
+        self.tier = try vocabulary(wire.tier, "tier")
     }
 }
 
@@ -110,4 +108,13 @@ extension Entitlement.Usage {
         self.windowStart = wire.windowStart
         self.windowEnd = wire.windowEnd
     }
+}
+
+/// `EntitlementPlan` as decoded, in place of the generated type
+/// (`typeOverrides` in the generator config): the generated one reads `tier` as
+/// an enum, which refuses a tier the API added since.
+struct WireEntitlementPlan: Codable, Hashable, Sendable {
+    var key: String
+    var name: String
+    var tier: String
 }

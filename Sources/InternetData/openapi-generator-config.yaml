@@ -11,3 +11,12 @@ filter:
     - Database v2
     - Lookup
     - Entitlement
+# A value the API adds to a closed list must read as served, so these decode
+# as strings and the hand-written layer opens them (Vocabulary.swift).
+typeOverrides:
+  schemas:
+    DatabaseFormat: Swift.String
+    Standing: Swift.String
+    EntitlementPlan: WireEntitlementPlan
+    Database: WireDatabase
+    Download: WireDownload

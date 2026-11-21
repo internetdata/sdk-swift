@@ -22,6 +22,20 @@ struct Corpus: Decodable, Sendable {
     let visibility: Visibility
     /// Read loosely, because its cases tell `null` apart from absent.
     let oauth: JSONValue
+    let vocabulary: Vocabulary
+
+    /// Values the API may add to a closed list, and the plan's name. Each
+    /// `expect` key is a wire path through the answer.
+    struct Vocabulary: Decodable, Sendable {
+        let cases: [Case]
+
+        struct Case: Decodable, Sendable {
+            let name: String
+            let call: String
+            let answer: JSONValue
+            let expect: [String: JSONValue]
+        }
+    }
 
     struct ErrorCase: Decodable, Sendable {
         let name: String
@@ -128,6 +142,13 @@ extension Corpus {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
 
+    func vocabularyCase(_ name: String) -> Vocabulary.Case {
+        guard let found = vocabulary.cases.first(where: { $0.name == name }) else {
+            fatalError("the corpus has no vocabulary case named \(name)")
+        }
+        return found
+    }
+
     func batchCase(_ name: String) -> BatchCase {
         guard let found = batch.first(where: { $0.name == name }) else {
             fatalError("the corpus has no batch case named \(name)")
@@ -156,6 +177,46 @@ extension JSONValue {
             return [:]
         }
         return members
+    }
+
+    /// The value at a dotted wire path, a number indexing a list, or nil.
+    func at(_ path: String) -> JSONValue? {
+        var node: JSONValue? = self
+        for step in path.split(separator: ".") {
+            switch node {
+            case .object(let members): node = members[String(step)]
+            case .array(let items):
+                guard let index = Int(step), items.indices.contains(index) else {
+                    return nil
+                }
+                node = items[index]
+            default: return nil
+            }
+        }
+        return node
+    }
+
+    /// A copy with the value at a dotted wire path replaced.
+    func setting(_ path: String, to value: JSONValue) -> JSONValue {
+        var steps = path.split(separator: ".").map(String.init)
+        guard !steps.isEmpty else {
+            return value
+        }
+        let step = steps.removeFirst()
+        let rest = steps.joined(separator: ".")
+        switch self {
+        case .object(var members):
+            members[step] = (members[step] ?? .null).setting(rest, to: value)
+            return .object(members)
+        case .array(var items):
+            guard let index = Int(step), items.indices.contains(index) else {
+                return self
+            }
+            items[index] = items[index].setting(rest, to: value)
+            return .array(items)
+        default:
+            return self
+        }
     }
 
     /// The fixture body as the bytes a server would have sent.

@@ -87,10 +87,11 @@ public struct DatabaseAPI: Sendable {
     public func checksums(
         id: String, format: DatabaseFormat, timeout: Duration? = nil,
     ) async throws -> DatabaseChecksums {
-        try await withRetry(retries) {
+        try checkFormat(format)
+        return try await withRetry(retries) {
             try await withDeadline(timeout ?? self.timeout) {
                 let output = try await api.databaseChecksumV2(
-                    query: .init(id: id, format: .init(format)),
+                    query: .init(id: id, format: format.rawValue),
                 )
                 guard case .ok(let ok) = output else {
                     throw unexpected(output)
@@ -147,13 +148,14 @@ public struct DatabaseAPI: Sendable {
     public func downloadURL(
         id: String, format: DatabaseFormat, build: String?, timeout: Duration? = nil,
     ) async throws -> URL {
+        try checkFormat(format)
         let named = build?.isEmpty == false ? build : nil
         return try await withRetry(retries) {
             try await withDeadline(timeout ?? self.timeout) {
                 let served = ServedLocation.Capture()
                 let output = try await ServedLocation.$current.withValue(served) {
                     try await api.downloadDatabaseV2(
-                        query: .init(id: id, format: .init(format), build: named),
+                        query: .init(id: id, format: format.rawValue, build: named),
                     )
                 }
                 guard case .found = output else {
@@ -341,10 +343,20 @@ private func split(_ url: URL) throws -> (origin: URL, path: String) {
 ///
 /// Not every database is built in every format: the `_provider` catalogs are
 /// keyed by provider ID rather than by IP range, so no MMDB exists for them, and
-/// asking for one is a `badRequest` rather than a gap.
-public enum DatabaseFormat: String, Sendable, Hashable, CaseIterable {
-    case csvgz
-    case mmdb
+/// asking for one is a `badRequest` rather than a gap. A format this release was
+/// not built with reads as served in an answer, and is refused as a
+/// ``InternetDataErrorKind/badRequest`` before any request names it.
+public struct DatabaseFormat: Vocabulary {
+    public let rawValue: String
+
+    public init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public static let csvgz = DatabaseFormat(rawValue: "csvgz")
+    public static let mmdb = DatabaseFormat(rawValue: "mmdb")
+
+    public static let known: [DatabaseFormat] = [.csvgz, .mmdb]
 }
 
 /// One database FAMILY, with your organization's license beside it.
@@ -381,21 +393,39 @@ public struct Database: Sendable, Hashable {
     /// frozen rather than migrated, so both stay downloadable.
     public let versions: [DatabaseVersion]
 
-    /// Where an organization stands on one family.
-    public enum Standing: String, Sendable, Hashable, CaseIterable {
+    /// Where an organization stands on one family. A standing this release was
+    /// not built with reads as served.
+    public struct Standing: Vocabulary {
+        public let rawValue: String
+
+        public init(rawValue: String) {
+            self.rawValue = rawValue
+        }
+
         /// A live grant.
-        case licensed
+        public static let licensed = Standing(rawValue: "licensed")
         /// A term that has ended.
-        case expired
+        public static let expired = Standing(rawValue: "expired")
         /// Published, but never bought.
-        case unlicensed
+        public static let unlicensed = Standing(rawValue: "unlicensed")
+
+        public static let known: [Standing] = [.licensed, .expired, .unlicensed]
     }
 
-    /// What a license permits.
-    public enum LicenseType: String, Sendable, Hashable, CaseIterable {
-        case evaluation
-        case standard
-        case redistribute
+    /// What a license permits. A license type this release was not built with
+    /// reads as served.
+    public struct LicenseType: Vocabulary {
+        public let rawValue: String
+
+        public init(rawValue: String) {
+            self.rawValue = rawValue
+        }
+
+        public static let evaluation = LicenseType(rawValue: "evaluation")
+        public static let standard = LicenseType(rawValue: "standard")
+        public static let redistribute = LicenseType(rawValue: "redistribute")
+
+        public static let known: [LicenseType] = [.evaluation, .standard, .redistribute]
     }
 }
 
@@ -476,87 +506,61 @@ public struct Download: Sendable, Hashable {
     public let userAgent: String?
     public let created: Date
 
-    public enum Outcome: String, Sendable, Hashable, CaseIterable {
-        case ok
-        case unauthorized
-        case denied
-        case expired
-        case unknown
-        case unavailable
+    /// How the attempt ended. An outcome this release was not built with reads
+    /// as served; `unknown` is one the API serves, a database it does not know.
+    public struct Outcome: Vocabulary {
+        public let rawValue: String
+
+        public init(rawValue: String) {
+            self.rawValue = rawValue
+        }
+
+        public static let ok = Outcome(rawValue: "ok")
+        public static let unauthorized = Outcome(rawValue: "unauthorized")
+        public static let denied = Outcome(rawValue: "denied")
+        public static let expired = Outcome(rawValue: "expired")
+        public static let unknown = Outcome(rawValue: "unknown")
+        public static let unavailable = Outcome(rawValue: "unavailable")
+
+        public static let known: [Outcome] = [.ok, .unauthorized, .denied, .expired, .unknown, .unavailable]
     }
 }
 
 extension Database {
-    init(_ wire: Components.Schemas.Database) throws {
+    init(_ wire: WireDatabase) throws {
         self.base = wire.base
         self.name = wire.name
         self.summary = wire.summary
-        self.standing = Standing(wire.standing)
+        self.standing = try vocabulary(wire.standing, "standing")
         self.open = wire.open
-        self.licenseType = try wire.licenseType.map(LicenseType.init)
+        self.licenseType = try wire.licenseType.map { try vocabulary($0, "license_type") }
         self.starts = wire.starts
         self.expires = wire.expires
         self.renewsAt = wire.renewsAt
         self.noticeDueAt = wire.noticeDueAt
-        self.versions = wire.versions.map(DatabaseVersion.init)
-    }
-}
-
-extension Database.Standing {
-    // Exhaustive rather than `init(rawValue:)`, so a standing added to the spec
-    // is a compile error here instead of silently becoming `unlicensed`.
-    init(_ wire: Components.Schemas.Standing) {
-        switch wire {
-        case .licensed: self = .licensed
-        case .expired: self = .expired
-        case .unlicensed: self = .unlicensed
-        }
-    }
-}
-
-extension Database.LicenseType {
-    /// The spec spells "no license" as `nullable: true` PLUS a `null` member of
-    /// the enum, and the generator turns that member into an `_empty_` case
-    /// alongside the three real ones. A `null` on the wire decodes as the absent
-    /// Optional, so `_empty_` is what `""` decodes as: no license type the API
-    /// sends, and refused rather than read as no license at all.
-    init(_ wire: Components.Schemas.Database.LicenseTypePayload) throws {
-        switch wire {
-        case .evaluation: self = .evaluation
-        case .standard: self = .standard
-        case .redistribute: self = .redistribute
-        case ._empty_: throw unreadable("license_type \"\" is no license type")
-        }
+        self.versions = try wire.versions.map(DatabaseVersion.init)
     }
 }
 
 extension DatabaseVersion {
-    init(_ wire: Components.Schemas.DatabaseVersion) {
+    init(_ wire: Components.Schemas.DatabaseVersion) throws {
         self.id = wire.id
         self.version = wire.version
         self.summary = wire.summary
-        self.formats = wire.formats.map(DatabaseFormat.init)
-        self.sampleFormats = wire.sampleFormats?.map(DatabaseFormat.init)
+        self.formats = try wire.formats.map { try vocabulary($0, "format") }
+        self.sampleFormats = try wire.sampleFormats?.map { try vocabulary($0, "format") }
     }
 }
 
-extension DatabaseFormat {
-    init(_ wire: Components.Schemas.DatabaseFormat) {
-        switch wire {
-        case .csvgz: self = .csvgz
-        case .mmdb: self = .mmdb
-        }
-    }
-}
-
-// One conversion for both operations that take a format: the spec declares the
-// parameter once and both `download` and `checksum` reference it.
-extension Components.Parameters.DbFormat {
-    init(_ format: DatabaseFormat) {
-        switch format {
-        case .csvgz: self = .csvgz
-        case .mmdb: self = .mmdb
-        }
+/// Refuses a format this release was not built with before any request names
+/// it: the API publishes the formats it builds, and a request for another is
+/// one it never answers with a file.
+private func checkFormat(_ format: DatabaseFormat) throws {
+    guard format.isKnown else {
+        let known = DatabaseFormat.known.map(\.rawValue).joined(separator: ", ")
+        throw InternetDataError(
+            kind: .badRequest, message: "format \(format.rawValue.debugDescription) is not one of \(known)",
+        )
     }
 }
 
@@ -598,10 +602,10 @@ extension DatabaseChecksums {
 }
 
 extension Download {
-    init(_ wire: Components.Schemas.Download) {
+    init(_ wire: WireDownload) throws {
         self.datasetId = wire.datasetId
         self.format = wire.format
-        self.outcome = Outcome(wire.outcome)
+        self.outcome = try vocabulary(wire.outcome, "outcome")
         self.sample = wire.sample
         self.open = wire.open
         self.bytes = wire.bytes
@@ -610,19 +614,6 @@ extension Download {
         self.clientIp = wire.clientIp
         self.userAgent = wire.userAgent
         self.created = wire.created
-    }
-}
-
-extension Download.Outcome {
-    init(_ wire: Components.Schemas.Download.OutcomePayload) {
-        switch wire {
-        case .ok: self = .ok
-        case .unauthorized: self = .unauthorized
-        case .denied: self = .denied
-        case .expired: self = .expired
-        case .unknown: self = .unknown
-        case .unavailable: self = .unavailable
-        }
     }
 }
 
@@ -636,4 +627,65 @@ private func unreadable(_ detail: String) -> InternetDataError {
     InternetDataError(
         kind: .serverError, message: "the response was not the answer this call returns: \(detail)", status: 200,
     )
+}
+
+/// `Database` as decoded, in place of the generated type (`typeOverrides` in
+/// the generator config): the generated one reads `license_type` as an enum,
+/// which refuses a license type the API added since. `standing` and each
+/// version's formats arrive as strings by the same config.
+struct WireDatabase: Codable, Hashable, Sendable {
+    var base: String
+    var name: String
+    var summary: String
+    var standing: String
+    var open: Bool
+    var licenseType: String?
+    var starts: Date?
+    var expires: Date?
+    var renewsAt: Date?
+    var noticeDueAt: Date?
+    var versions: [Components.Schemas.DatabaseVersion]
+
+    enum CodingKeys: String, CodingKey {
+        case base
+        case name
+        case summary
+        case standing
+        case open
+        case licenseType = "license_type"
+        case starts
+        case expires
+        case renewsAt = "renews_at"
+        case noticeDueAt = "notice_due_at"
+        case versions
+    }
+}
+
+/// `Download` as decoded, in place of the generated type, for its `outcome`.
+struct WireDownload: Codable, Hashable, Sendable {
+    var datasetId: String
+    var format: String
+    var outcome: String
+    var sample: Bool
+    var open: Bool
+    var bytes: Int64?
+    var httpStatus: Int?
+    var apikeyId: String?
+    var clientIp: String?
+    var userAgent: String?
+    var created: Date
+
+    enum CodingKeys: String, CodingKey {
+        case datasetId = "dataset_id"
+        case format
+        case outcome
+        case sample
+        case open
+        case bytes
+        case httpStatus = "http_status"
+        case apikeyId = "apikey_id"
+        case clientIp = "client_ip"
+        case userAgent = "user_agent"
+        case created
+    }
 }

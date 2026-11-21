@@ -364,6 +364,19 @@ result.trialExpired == true // a free-plan key's trial is spent
 result.capReached == true   // a paid key is past its overage cap
 ```
 
+### A value the API adds
+
+A plan's tier, a database's standing and license type, a format and a download's outcome are each a struct with a constant per value this release knows. From 3.0.0, a value the API adds later reads as itself rather than failing the call, so compare with `==` and keep a `default:` in a `switch`:
+
+```swift
+if database.standing == .licensed { /* download it */ }
+database.standing.rawValue  // "licensed", as the API spells it
+database.standing.isKnown   // false for a value added after this release
+Database.Standing.known     // every value this release knows
+```
+
+A format you pass in must be one of `DatabaseFormat.known`; any other is a `badRequest` before a request is made.
+
 ### Supplying your own transport
 
 By default the library talks to the API over [AsyncHTTPClient](https://github.com/swift-server/async-http-client), configured to refuse redirects. Anything conforming to `ClientTransport` can take its place. To use `URLSession` on an Apple platform, add [swift-openapi-urlsession](https://github.com/apple/swift-openapi-urlsession) to your own package and hand its transport in:
