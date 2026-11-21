@@ -61,8 +61,9 @@ public struct InternetDataClient: Sendable {
 
         // Resolved once, because the download path calls object storage straight
         // through the transport rather than through the generated client and has
-        // to reach the same implementation a caller substituted.
-        let transport = options.transport ?? DefaultTransport.shared
+        // to reach the same implementation a caller substituted. Wrapped, so every
+        // request names this library whichever transport sends it.
+        let transport = NamedTransport(base: options.transport ?? DefaultTransport.shared)
         let baseURL = withoutTrailingSlashes(options.baseURL)
         let api = Client(
             serverURL: baseURL,

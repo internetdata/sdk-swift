@@ -389,6 +389,8 @@ let client = InternetDataClient(options: .init(apiKey: key, transport: URLSessio
 
 One thing to know if you do: the download endpoint answers `302`, and the library follows that redirect itself as a second request rather than letting the transport do it. That is what keeps your API key off object storage, and it is what stops a whole database being read into memory before the library ever sees the link. Configure yours not to follow redirects. The library refuses such a response rather than reading it, but the transfer has already started by then.
 
+Every request, object storage's included, names the library in its `User-Agent` (`internetdata-swift/3.0.0`), set before it reaches your transport, so a transport that wraps another can put its own name first.
+
 ## Other Libraries
 
 There are official InternetData client libraries available for many languages including PHP, Python, Go, Java, and Ruby. See our GitHub at https://github.com/internetdata for more.

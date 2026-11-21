@@ -40,6 +40,8 @@ final class TestOrigin: Sendable {
     /// The `Authorization` header of every request, so "the key never left the
     /// API" is asserted at the wire rather than inferred from the code.
     var receivedAuthorizations: [String?] { log.authorizations }
+    /// The `User-Agent` header of every request.
+    var receivedUserAgents: [String?] { log.userAgents }
 
     static func start(_ answer: @escaping @Sendable (String) -> Answer) async throws -> TestOrigin {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
@@ -74,7 +76,7 @@ final class TestOrigin: Sendable {
     // made the instant the client returns could beat it.
     private final class RequestLog: @unchecked Sendable {
         private let lock = NSLock()
-        private var storage: [(String, String?)] = []
+        private var storage: [(String, String?, String?)] = []
 
         var paths: [String] {
             lock.withLock { storage.map(\.0) }
@@ -84,8 +86,12 @@ final class TestOrigin: Sendable {
             lock.withLock { storage.map(\.1) }
         }
 
-        func record(_ path: String, authorization: String?) {
-            lock.withLock { storage.append((path, authorization)) }
+        var userAgents: [String?] {
+            lock.withLock { storage.map(\.2) }
+        }
+
+        func record(_ path: String, authorization: String?, userAgent: String?) {
+            lock.withLock { storage.append((path, authorization, userAgent)) }
         }
     }
 
@@ -99,6 +105,7 @@ final class TestOrigin: Sendable {
         private let log: RequestLog
         private var uri = "/"
         private var authorization: String?
+        private var userAgent: String?
 
         init(answer: @escaping @Sendable (String) -> Answer, log: RequestLog) {
             self.answer = answer
@@ -110,6 +117,7 @@ final class TestOrigin: Sendable {
             case .head(let head):
                 uri = head.uri
                 authorization = head.headers.first(name: "Authorization")
+                userAgent = head.headers.first(name: "User-Agent")
             case .body:
                 break
             case .end:
@@ -119,7 +127,7 @@ final class TestOrigin: Sendable {
 
         private func respond(context: ChannelHandlerContext) {
             let path = uri
-            log.record(path, authorization: authorization)
+            log.record(path, authorization: authorization, userAgent: userAgent)
 
             let answer = answer(path)
             if let after = answer.closeAfter {

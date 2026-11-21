@@ -34,6 +34,24 @@ enum DefaultTransport {
     )
 }
 
+/// Names this library in every request's `User-Agent`: the API's, OAuth's and
+/// object storage's transfer all go through it. Set before the request reaches
+/// the transport, so one passed in sees the header already set, and a transport
+/// that wraps another can put its own name first.
+struct NamedTransport: ClientTransport {
+    static let userAgent = "internetdata-swift/\(sdkVersion)"
+
+    let base: any ClientTransport
+
+    func send(
+        _ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String,
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        var request = request
+        request.headerFields[.userAgent] = Self.userAgent
+        return try await base.send(request, body: body, baseURL: baseURL, operationID: operationID)
+    }
+}
+
 /// Reads an RFC 3339 `date-time`, and nothing else.
 ///
 /// The runtime ships two ISO 8601 transcoders and each refuses what the other
