@@ -79,8 +79,8 @@ actor ResultCache {
         entries[ip]?.expires
     }
 
-    // A reduced answer, a spent trial's or a reached cap's, ends with a new UTC
-    // day or a raised cap, so it stays a minute at most rather than the TTL. It
+    // A reduced answer, a spent trial's or a reached cap's, ends with a new
+    // month or a raised cap, so it stays a minute at most rather than the TTL. It
     // is still cached, or a busy process would send every repeat to the API.
     private func life(of result: LookupResult) -> Duration {
         guard result.trialExpired == true || result.capReached == true else {
