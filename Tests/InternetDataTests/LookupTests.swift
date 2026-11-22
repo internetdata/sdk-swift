@@ -218,6 +218,12 @@ struct LookupTests {
         body["relay"] = row(12)
         body["hosting"] = row(13)
         body["cdn"] = row(14)
+        body["is_bot"] = true
+        body["bot"] = [
+            "provider": "b", "provider_name": "B", "agents": ["Googlebot", "GoogleOther"],
+            "categories": ["search_engine", "ai_search"], "verified": true, "identity": "verified",
+            "verified_by": "list", "confidence": "high", "first_seen": "2025-07-01", "last_seen": "2026-07-01",
+        ]
         body["resproxy"] = proxy(15)
         body["dcproxy"] = proxy(16)
         body["mobproxy"] = proxy(17)

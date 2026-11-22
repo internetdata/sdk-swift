@@ -69,7 +69,7 @@ final class StubTransport: ClientTransport {
     /// spec requires and nothing else.
     static func answer(for ip: String) -> [String: Any] {
         [
-            "ip": ip, "is_bogon": false, "is_tor": false, "is_relay": false, "is_anycast": false,
+            "ip": ip, "is_bogon": false, "is_tor": false, "is_relay": false, "is_bot": false, "is_anycast": false,
             "is_carrier": false, "is_satellite": false, "is_ssh": false, "is_smtp": false,
             "is_web": false, "is_dns_resolver": false, "is_bittorrent": false,
             "tor": [String: Any](), "relay": [String: Any](),
@@ -80,7 +80,7 @@ final class StubTransport: ClientTransport {
             ],
             "asn": [
                 "asn": 9009, "name": "M247 Europe SRL", "domain": "m247global.com", "type": "hosting",
-                "prefix": "146.70.116.0/24",
+                "prefix": "146.70.116.0/24", "country": "RO", "rpki_status": "not_found",
             ],
             "company": ["name": "", "domain": ""],
             "hostname": "",

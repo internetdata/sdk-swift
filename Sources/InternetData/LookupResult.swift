@@ -37,6 +37,10 @@ public struct LookupResult: Sendable, Hashable {
     public let isHosting: Bool?
     /// In CDN IP: a content delivery network. Paid plans and the trial.
     public let isCdn: Bool?
+    /// In Bot IP: an automated client's address, such as a search engine's or an
+    /// AI company's crawler, an uptime monitor, an internet scanner or a webhook
+    /// sender. ``bot`` says whose. Every plan answers it.
+    public let isBot: Bool
     /// In Anycast IP: announced from many places at once.
     public let isAnycast: Bool
     /// In Carrier IP: a mobile carrier's address space.
@@ -66,6 +70,8 @@ public struct LookupResult: Sendable, Hashable {
     public let pubproxy: PubproxyDetail?
     public let hosting: ClassDetail?
     public let cdn: ClassDetail?
+    /// Bot IP's row, empty when ``isBot`` is false. Paid plans and the trial.
+    public let bot: BotDetail?
     public let carrier: CarrierDetail?
     public let satellite: SatelliteDetail?
     public let ssh: SshDetail?
@@ -161,6 +167,40 @@ public struct PubproxyDetail: Sendable, Hashable {
     public var isEmpty: Bool {
         entry == nil && exit == nil && protocols == nil && numPorts == nil && numProxies == nil
             && lastSeen == nil && lastUsable == nil
+    }
+}
+
+/// The bot that uses the address, from Bot IP: whose it is, what it does and
+/// whether its operator vouches for the address.
+public struct BotDetail: Sendable, Hashable {
+    /// The bot operator's ID in its catalog, empty where no operator is known.
+    public let provider: String?
+    /// The operator's name, empty where no operator is known.
+    public let providerName: String?
+    /// The bots the address serves, as their user agents name them (`Googlebot`,
+    /// `GPTBot`); for an address that is not verified, the bots it claimed to be.
+    /// Empty when none is named.
+    public let agents: [String]?
+    /// What those bots do, such as `search_engine`, `ai_training` or `monitoring`;
+    /// empty where unknown.
+    public let categories: [String]?
+    /// The operator vouches for the address, so the bots in ``agents`` really are its.
+    public let verified: Bool?
+    /// `verified`, `declared`, `spoofed` or `undeclared`.
+    public let identity: String?
+    /// How a verified address verified: `list`, `rdns` or `owner`; empty when not verified.
+    public let verifiedBy: String?
+    /// `high`, `medium` or `low`: how sure we are the address is what the row says.
+    public let confidence: String?
+    /// The first day the address was seen as such.
+    public let firstSeen: String?
+    /// The last day it was.
+    public let lastSeen: String?
+
+    public var isEmpty: Bool {
+        provider == nil && providerName == nil && agents == nil && categories == nil && verified == nil
+            && identity == nil && verifiedBy == nil && confidence == nil && firstSeen == nil
+            && lastSeen == nil
     }
 }
 
@@ -467,6 +507,7 @@ extension LookupResult {
         self.isPubproxy = body.isPubproxy
         self.isHosting = body.isHosting
         self.isCdn = body.isCdn
+        self.isBot = body.isBot
         self.isAnycast = body.isAnycast
         self.isCarrier = body.isCarrier
         self.isSatellite = body.isSatellite
@@ -484,6 +525,7 @@ extension LookupResult {
         self.pubproxy = body.pubproxy.map { PubproxyDetail($0.value1) }
         self.hosting = body.hosting.map { ClassDetail($0.value1) }
         self.cdn = body.cdn.map { ClassDetail($0.value1) }
+        self.bot = body.bot.map { BotDetail($0.value1) }
         self.carrier = body.carrier.map { CarrierDetail($0.value1) }
         self.satellite = body.satellite.map { SatelliteDetail($0.value1) }
         self.ssh = body.ssh.map { SshDetail($0.value1) }
@@ -544,6 +586,22 @@ extension PubproxyDetail {
     )
 }
 
+extension BotDetail {
+    init(_ wire: Components.Schemas.BotDetail) {
+        self.init(
+            provider: wire.provider, providerName: wire.providerName, agents: wire.agents,
+            categories: wire.categories, verified: wire.verified, identity: wire.identity,
+            verifiedBy: wire.verifiedBy, confidence: wire.confidence, firstSeen: wire.firstSeen,
+            lastSeen: wire.lastSeen,
+        )
+    }
+
+    static let empty = BotDetail(
+        provider: nil, providerName: nil, agents: nil, categories: nil, verified: nil, identity: nil,
+        verifiedBy: nil, confidence: nil, firstSeen: nil, lastSeen: nil,
+    )
+}
+
 extension CarrierDetail {
     init(_ wire: Components.Schemas.CarrierDetail) {
         self.init(
@@ -559,7 +617,7 @@ extension SatelliteDetail {
     init(_ wire: Components.Schemas.SatelliteDetail) {
         self.init(
             provider: wire.provider, providerName: wire.providerName, orbit: wire.orbit,
-            segment: wire.segment, country: wire.country, asn: wire.asn, confidence: wire.confidence,
+            segment: wire.segment, country: wire.country, asn: wire.asn.map(Int.init(asNumber:)), confidence: wire.confidence,
         )
     }
 
@@ -676,7 +734,7 @@ extension Location {
 
 extension Asn {
     init(_ wire: Components.Schemas.Asn) {
-        self.asn = wire.asn
+        self.asn = Int(asNumber: wire.asn)
         self.name = wire.name
         self.domain = wire.domain
         self.type = wire._type
@@ -728,7 +786,7 @@ extension Whois {
         self.source = wire.source
         self.domain = wire.domain
         self.abuseEmail = wire.abuseEmail
-        self.asn = wire.asn
+        self.asn = Int(asNumber: wire.asn)
     }
 
     static let empty = Whois(
@@ -747,4 +805,13 @@ extension Rwhois {
     }
 
     static let empty = Rwhois(id: "", name: "", country: "", source: "", domain: "", abuseEmail: "")
+}
+
+extension Int {
+    /// An AS number as the spec types it (`format: int64`). Every AS number fits a
+    /// 64-bit `Int`; where `Int` is 32 bits (watchOS's `arm64_32`) one past
+    /// `Int.max` is held at `Int.max` rather than trapping the caller's process.
+    init(asNumber value: Int64) {
+        self.init(clamping: value)
+    }
 }

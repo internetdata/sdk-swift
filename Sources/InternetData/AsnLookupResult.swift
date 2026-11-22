@@ -96,7 +96,7 @@ public struct AsnPrefix: Sendable, Hashable {
 
 extension AsnLookupResult {
     init(_ wire: Components.Schemas.AsnLookupResponse) {
-        self.asn = wire.asn
+        self.asn = Int(asNumber: wire.asn)
         self.name = wire.name
         self.country = wire.country
         self.registry = wire.registry

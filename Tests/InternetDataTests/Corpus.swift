@@ -245,7 +245,7 @@ extension LookupResult {
     var wire: JSONValue {
         var fields: [String: JSONValue] = [
             "ip": .string(ip), "is_bogon": .bool(isBogon), "is_tor": .bool(isTor),
-            "is_relay": .bool(isRelay), "is_anycast": .bool(isAnycast), "is_carrier": .bool(isCarrier),
+            "is_relay": .bool(isRelay), "is_bot": .bool(isBot), "is_anycast": .bool(isAnycast), "is_carrier": .bool(isCarrier),
             "is_satellite": .bool(isSatellite), "is_ssh": .bool(isSsh), "is_smtp": .bool(isSmtp),
             "is_web": .bool(isWeb), "is_dns_resolver": .bool(isDnsResolver),
             "is_bittorrent": .bool(isBittorrent), "tor": tor.wire, "relay": relay.wire,
@@ -263,7 +263,7 @@ extension LookupResult {
         let objects: [String: JSONValue?] = [
             "vpn": vpn?.wire, "resproxy": resproxy?.wire, "dcproxy": dcproxy?.wire,
             "mobproxy": mobproxy?.wire, "pubproxy": pubproxy?.wire, "hosting": hosting?.wire,
-            "cdn": cdn?.wire, "carrier": carrier?.wire, "satellite": satellite?.wire, "ssh": ssh?.wire,
+            "cdn": cdn?.wire, "bot": bot?.wire, "carrier": carrier?.wire, "satellite": satellite?.wire, "ssh": ssh?.wire,
             "smtp": smtp?.wire, "web": web.map { .array($0.map(\.wire)) },
             "dns_resolver": dnsResolver?.wire, "bittorrent": bittorrent?.wire, "whois": whois?.wire,
             "rwhois": rwhois?.wire, "hosted_domains": hostedDomains?.wire,
@@ -439,6 +439,19 @@ extension PubproxyDetail {
             "protocols": protocols.map { .array($0.map { .string($0) }) },
             "num_ports": numPorts.map { .int($0) }, "num_proxies": numProxies.map { .int($0) },
             "last_seen": lastSeen.map { .string($0) }, "last_usable": lastUsable.map { .string($0) },
+        ])
+    }
+}
+
+extension BotDetail {
+    var wire: JSONValue {
+        object([
+            "provider": provider.map { .string($0) }, "provider_name": providerName.map { .string($0) },
+            "agents": agents.map { .array($0.map { .string($0) }) },
+            "categories": categories.map { .array($0.map { .string($0) }) },
+            "verified": verified.map { .bool($0) }, "identity": identity.map { .string($0) },
+            "verified_by": verifiedBy.map { .string($0) }, "confidence": confidence.map { .string($0) },
+            "first_seen": firstSeen.map { .string($0) }, "last_seen": lastSeen.map { .string($0) },
         ])
     }
 }

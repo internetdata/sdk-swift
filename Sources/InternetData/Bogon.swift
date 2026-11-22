@@ -50,10 +50,10 @@ extension LookupResult {
         LookupResult(
             ip: ip, isBogon: true, isVpn: false, isTor: false, isRelay: false,
             isResproxy: false, isDcproxy: false, isMobproxy: false, isPubproxy: false,
-            isHosting: false, isCdn: false, isAnycast: false, isCarrier: false, isSatellite: false,
+            isHosting: false, isCdn: false, isBot: false, isAnycast: false, isCarrier: false, isSatellite: false,
             isSsh: false, isSmtp: false, isWeb: false, isDnsResolver: false, isBittorrent: false,
             vpn: .empty, tor: .empty, relay: .empty, resproxy: .empty, dcproxy: .empty, mobproxy: .empty,
-            pubproxy: .empty, hosting: .empty, cdn: .empty, carrier: .empty, satellite: .empty, ssh: .empty,
+            pubproxy: .empty, hosting: .empty, cdn: .empty, bot: .empty, carrier: .empty, satellite: .empty, ssh: .empty,
             smtp: .empty, web: [], dnsResolver: .empty, bittorrent: .empty,
             location: .empty, asn: .empty, company: .empty, hostname: "", abuse: .empty,
             whois: .empty, rwhois: .empty, hostedDomains: HostedDomains(total: 0, domains: []), trialExpired: nil,

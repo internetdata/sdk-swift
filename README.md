@@ -30,7 +30,7 @@ Requires Swift 6.1 or newer, and macOS 13, iOS 16, tvOS 16, watchOS 9 or visionO
 
 ## Usage
 
-**No API key needed to start.** Unlimited, the free plan, answers the address's country, its AS, who uses it, its reverse DNS name and abuse contact, and the Tor, relay, anycast, carrier, satellite and services flags, with no daily or monthly cap.
+**No API key needed to start.** Unlimited, the free plan, answers the address's country, its AS, who uses it, its reverse DNS name and abuse contact, and the Tor, relay, bot, anycast, carrier, satellite and services flags, with no daily or monthly cap.
 
 ```swift
 import InternetData
@@ -45,7 +45,7 @@ print(result.isTor)              // false
 
 ### With an API key
 
-Every paid plan answers every field: the VPN, proxy, hosting and CDN flags and the provider and confidence behind each, the city and the coordinates, the Whois records, and the hosted domains, a count and the 10 most popular. The plans differ only in how many lookups they include, and a free account tries every field. Create a key in the [console](https://app.internetdata.io), then pass it in:
+Every paid plan answers every field: the VPN, proxy, hosting and CDN flags and the provider and confidence behind each, whose bot uses the address and whether its operator vouches for it, the city and the coordinates, the Whois records, and the hosted domains, a count and the 10 most popular. The plans differ only in how many lookups they include, and a free account tries every field. Create a key in the [console](https://app.internetdata.io), then pass it in:
 
 ```swift
 let client = InternetDataClient(apiKey: ProcessInfo.processInfo.environment["INTERNETDATA_API_KEY"]!)
@@ -354,7 +354,7 @@ Each redirect URI must be https on a public host name, or http on a loopback add
 
 ### Absent is not false
 
-Unlimited leaves out `isVpn`, the proxy, hosting and CDN flags and the detail behind them, the Whois records and the paid members inside `location`, `asn`, `company` and `abuse`, such as `location.city`; a free-plan key's answer carries `trialExpired`, true once its trial is spent. A paid key's carries `capReached`, true once its organization's overage cap is reached, when the answer has Unlimited's fields and isn't billed. Every member a plan can leave out is `Optional`, where `nil` means "not in your plan" rather than "checked, and no".
+Unlimited leaves out `isVpn`, the proxy, hosting and CDN flags and the detail behind them, `bot`, the Whois records and the paid members inside `location`, `asn`, `company` and `abuse`, such as `location.city`; a free-plan key's answer carries `trialExpired`, true once its trial is spent. A paid key's carries `capReached`, true once its organization's overage cap is reached, when the answer has Unlimited's fields and isn't billed. Every member a plan can leave out is `Optional`, where `nil` means "not in your plan" rather than "checked, and no".
 
 ```swift
 result.isHosting ?? false   // when you only want the flag
