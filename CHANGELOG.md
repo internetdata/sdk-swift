@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 3.1.0 - 2026-11-22
+
+### Features
+
+- Read whether an address is a bot's, and on a paid plan whose bot it is ([`03106c5`](https://github.com/internetdata/sdk-swift/commit/03106c5f49b9d1302849eab0c0b2d0ea72c9e9c8))
+
 ## 3.0.0 - 2026-11-21
 
 ### Breaking changes
