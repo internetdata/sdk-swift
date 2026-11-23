@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 3.1.1 - 2026-11-23
+
+### Fixes
+
+- Say what a bot's provider and provider name hold for an address that is not verified ([`b17d77a`](https://github.com/internetdata/sdk-swift/commit/b17d77a2ba1df0bcd0a77b612e72e202f2a7e942))
+
 ## 3.1.0 - 2026-11-22
 
 ### Features
