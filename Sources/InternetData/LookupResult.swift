@@ -173,9 +173,11 @@ public struct PubproxyDetail: Sendable, Hashable {
 /// The bot that uses the address, from Bot IP: whose it is, what it does and
 /// whether its operator vouches for the address.
 public struct BotDetail: Sendable, Hashable {
-    /// The bot operator's ID in its catalog, empty where no operator is known.
+    /// The bot operator's ID in its catalog; for an address that is not
+    /// verified, the operator its claim named. Empty where no operator is known.
     public let provider: String?
-    /// The operator's name, empty where no operator is known.
+    /// The operator's name, the one its claim named for an address that is not
+    /// verified; empty where no operator is known.
     public let providerName: String?
     /// The bots the address serves, as their user agents name them (`Googlebot`,
     /// `GPTBot`); for an address that is not verified, the bots it claimed to be.
