@@ -497,7 +497,7 @@ public struct HostedDomains: Sendable, Hashable {
 // survives for free: every member the spec does not require is already an
 // Optional, so copying it across cannot collapse `false` into "not in your plan".
 extension LookupResult {
-    init(_ body: Components.Schemas.LookupResponse) {
+    init(_ body: Components.Schemas.LookupResponse) throws {
         self.ip = body.ip
         self.isBogon = body.isBogon
         self.isVpn = body.isVpn
@@ -518,23 +518,23 @@ extension LookupResult {
         self.isWeb = body.isWeb
         self.isDnsResolver = body.isDnsResolver
         self.isBittorrent = body.isBittorrent
-        self.vpn = body.vpn.map { ClassDetail($0.value1) }
-        self.tor = ClassDetail(body.tor.value1)
-        self.relay = ClassDetail(body.relay.value1)
-        self.resproxy = body.resproxy.map { ProxyDetail($0.value1) }
-        self.dcproxy = body.dcproxy.map { ProxyDetail($0.value1) }
-        self.mobproxy = body.mobproxy.map { ProxyDetail($0.value1) }
-        self.pubproxy = body.pubproxy.map { PubproxyDetail($0.value1) }
-        self.hosting = body.hosting.map { ClassDetail($0.value1) }
-        self.cdn = body.cdn.map { ClassDetail($0.value1) }
-        self.bot = body.bot.map { BotDetail($0.value1) }
+        self.vpn = try body.vpn.map { try ClassDetail($0.value1, "vpn") }
+        self.tor = try ClassDetail(body.tor.value1, "tor")
+        self.relay = try ClassDetail(body.relay.value1, "relay")
+        self.resproxy = try body.resproxy.map { try ProxyDetail($0.value1, "resproxy") }
+        self.dcproxy = try body.dcproxy.map { try ProxyDetail($0.value1, "dcproxy") }
+        self.mobproxy = try body.mobproxy.map { try ProxyDetail($0.value1, "mobproxy") }
+        self.pubproxy = try body.pubproxy.map { try PubproxyDetail($0.value1) }
+        self.hosting = try body.hosting.map { try ClassDetail($0.value1, "hosting") }
+        self.cdn = try body.cdn.map { try ClassDetail($0.value1, "cdn") }
+        self.bot = try body.bot.map { try BotDetail($0.value1) }
         self.carrier = body.carrier.map { CarrierDetail($0.value1) }
         self.satellite = body.satellite.map { SatelliteDetail($0.value1) }
-        self.ssh = body.ssh.map { SshDetail($0.value1) }
-        self.smtp = body.smtp.map { SmtpDetail($0.value1) }
-        self.web = body.web?.map(WebDetail.init)
-        self.dnsResolver = body.dnsResolver.map { DnsResolverDetail($0.value1) }
-        self.bittorrent = body.bittorrent.map { BitTorrentDetail($0.value1) }
+        self.ssh = try body.ssh.map { try SshDetail($0.value1) }
+        self.smtp = try body.smtp.map { try SmtpDetail($0.value1) }
+        self.web = try body.web?.map(WebDetail.init)
+        self.dnsResolver = try body.dnsResolver.map { try DnsResolverDetail($0.value1) }
+        self.bittorrent = try body.bittorrent.map { try BitTorrentDetail($0.value1) }
         self.location = Location(body.location)
         self.asn = Asn(body.asn)
         self.company = Company(body.company)
@@ -549,10 +549,10 @@ extension LookupResult {
 }
 
 extension ClassDetail {
-    init(_ wire: Components.Schemas.ClassDetail) {
+    init(_ wire: Components.Schemas.ClassDetail, _ member: String) throws {
         self.init(
             provider: wire.provider, providerName: wire.providerName, confidence: wire.confidence,
-            lastSeen: wire.lastSeen,
+            lastSeen: try seenDay(wire.lastSeen, "\(member).last_seen"),
         )
     }
 
@@ -560,10 +560,11 @@ extension ClassDetail {
 }
 
 extension ProxyDetail {
-    init(_ wire: Components.Schemas.ProxyDetail) {
+    init(_ wire: Components.Schemas.ProxyDetail, _ member: String) throws {
         self.init(
-            provider: wire.provider, providerName: wire.providerName, firstSeen: wire.firstSeen,
-            lastSeen: wire.lastSeen, hits: wire.hits, hitsDaysPct: wire.hitsDaysPct,
+            provider: wire.provider, providerName: wire.providerName,
+            firstSeen: try seenDay(wire.firstSeen, "\(member).first_seen"),
+            lastSeen: try seenDay(wire.lastSeen, "\(member).last_seen"), hits: wire.hits, hitsDaysPct: wire.hitsDaysPct,
             providersNum: wire.providersNum,
         )
     }
@@ -575,10 +576,11 @@ extension ProxyDetail {
 }
 
 extension PubproxyDetail {
-    init(_ wire: Components.Schemas.PubproxyDetail) {
+    init(_ wire: Components.Schemas.PubproxyDetail) throws {
         self.init(
             entry: wire.entry, exit: wire.exit, protocols: wire.protocols, numPorts: wire.numPorts,
-            numProxies: wire.numProxies, lastSeen: wire.lastSeen, lastUsable: wire.lastUsable,
+            numProxies: wire.numProxies, lastSeen: try seenDay(wire.lastSeen, "pubproxy.last_seen"),
+            lastUsable: wire.lastUsable,
         )
     }
 
@@ -589,12 +591,12 @@ extension PubproxyDetail {
 }
 
 extension BotDetail {
-    init(_ wire: Components.Schemas.BotDetail) {
+    init(_ wire: Components.Schemas.BotDetail) throws {
         self.init(
             provider: wire.provider, providerName: wire.providerName, agents: wire.agents,
             categories: wire.categories, verified: wire.verified, identity: wire.identity,
-            verifiedBy: wire.verifiedBy, confidence: wire.confidence, firstSeen: wire.firstSeen,
-            lastSeen: wire.lastSeen,
+            verifiedBy: wire.verifiedBy, confidence: wire.confidence,
+            firstSeen: try seenDay(wire.firstSeen, "bot.first_seen"), lastSeen: try seenDay(wire.lastSeen, "bot.last_seen"),
         )
     }
 
@@ -630,10 +632,10 @@ extension SatelliteDetail {
 }
 
 extension SshDetail {
-    init(_ wire: Components.Schemas.SshDetail) {
+    init(_ wire: Components.Schemas.SshDetail) throws {
         self.init(
             port: wire.port, banner: wire.banner, hostKeyFp: wire.hostKeyFp, sessionOk: wire.sessionOk,
-            firstSeen: wire.firstSeen, lastSeen: wire.lastSeen,
+            firstSeen: try seenDay(wire.firstSeen, "ssh.first_seen"), lastSeen: try seenDay(wire.lastSeen, "ssh.last_seen"),
         )
     }
 
@@ -643,10 +645,10 @@ extension SshDetail {
 }
 
 extension SmtpDetail {
-    init(_ wire: Components.Schemas.SmtpDetail) {
+    init(_ wire: Components.Schemas.SmtpDetail) throws {
         self.init(
-            port: wire.port, banner: wire.banner, sessionOk: wire.sessionOk, firstSeen: wire.firstSeen,
-            lastSeen: wire.lastSeen,
+            port: wire.port, banner: wire.banner, sessionOk: wire.sessionOk,
+            firstSeen: try seenDay(wire.firstSeen, "smtp.first_seen"), lastSeen: try seenDay(wire.lastSeen, "smtp.last_seen"),
         )
     }
 
@@ -654,7 +656,7 @@ extension SmtpDetail {
 }
 
 extension WebDetail {
-    init(_ wire: Components.Schemas.WebDetail) {
+    init(_ wire: Components.Schemas.WebDetail) throws {
         self.port = wire.port
         self.tlsOk = wire.tlsOk
         self.sessionOk = wire.sessionOk
@@ -667,16 +669,17 @@ extension WebDetail {
         self.certIssuerDn = wire.certIssuerDn
         self.certBrowserTrusted = wire.certBrowserTrusted
         self.tlsVersion = wire.tlsVersion
-        self.firstSeen = wire.firstSeen
-        self.lastSeen = wire.lastSeen
+        self.firstSeen = try seenDay(wire.firstSeen, "web.first_seen")
+        self.lastSeen = try seenDay(wire.lastSeen, "web.last_seen")
     }
 }
 
 extension DnsResolverDetail {
-    init(_ wire: Components.Schemas.DnsResolverDetail) {
+    init(_ wire: Components.Schemas.DnsResolverDetail) throws {
         self.init(
             port: wire.port, recursionAvailable: wire.recursionAvailable, rcode: wire.rcode,
-            answerCorrect: wire.answerCorrect, firstSeen: wire.firstSeen, lastSeen: wire.lastSeen,
+            answerCorrect: wire.answerCorrect, firstSeen: try seenDay(wire.firstSeen, "dns_resolver.first_seen"),
+            lastSeen: try seenDay(wire.lastSeen, "dns_resolver.last_seen"),
         )
     }
 
@@ -686,10 +689,11 @@ extension DnsResolverDetail {
 }
 
 extension BitTorrentDetail {
-    init(_ wire: Components.Schemas.BitTorrentDetail) {
+    init(_ wire: Components.Schemas.BitTorrentDetail) throws {
         self.init(
-            verified: wire.verified, idMatchesIp: wire.idMatchesIp, firstSeen: wire.firstSeen,
-            lastSeen: wire.lastSeen, lastReachable: wire.lastReachable, daysSeen: wire.daysSeen,
+            verified: wire.verified, idMatchesIp: wire.idMatchesIp,
+            firstSeen: try seenDay(wire.firstSeen, "bittorrent.first_seen"),
+            lastSeen: try seenDay(wire.lastSeen, "bittorrent.last_seen"), lastReachable: wire.lastReachable, daysSeen: wire.daysSeen,
             numPorts: wire.numPorts, peakNumPorts: wire.peakNumPorts, indexer: wire.indexer,
             clients: wire.clients,
         )
@@ -816,4 +820,18 @@ extension Int {
     init(asNumber value: Int64) {
         self.init(clamping: value)
     }
+}
+
+// A seen day is `format: date`, which reaches the generated type as a plain
+// string, so nothing else checks it: `tomorrow`, 30 February and a date-time
+// would come back as served. It is the call's retried `server_error`.
+func seenDay(_ value: String, _ member: String) throws -> String {
+    guard RFC3339.isFullDate(value) else {
+        throw InternetDataError.unreadable("\(member) \(value.debugDescription), no YYYY-MM-DD date,", status: 200)
+    }
+    return value
+}
+
+func seenDay(_ value: String?, _ member: String) throws -> String? {
+    try value.map { try seenDay($0, member) }
 }

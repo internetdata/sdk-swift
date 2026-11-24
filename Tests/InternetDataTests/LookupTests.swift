@@ -655,6 +655,90 @@ extension LookupTests {
         )
     }
 
+    // A seen day is `format: date`, which reaches the generated type as a plain
+    // string, so nothing else checks it: `tomorrow`, 30 February and a date-time
+    // would come back as served.
+    @Test("a seen day that is no full date is a retried server error, on every call that serves one")
+    func aSeenDayThatIsNoFullDateIsUnreadable() async throws {
+        func lookup(_ member: String, _ value: Any) -> [String: Any] {
+            var body = StubTransport.answer(for: "1.1.1.1")
+            body[member] = value
+            return body
+        }
+        let web: [String: Any] = [
+            "port": 443, "tls_ok": true, "session_ok": true, "status_code": 200, "server": "s", "location": "",
+            "title": "", "cert_subject_cn": "", "cert_subject_o": "", "cert_issuer_dn": "",
+            "cert_browser_trusted": true, "tls_version": "TLSv1.3", "first_seen": "2026-02-30", "last_seen": "2026-11-12",
+        ]
+        let answers: [(String, [String: Any])] = [
+            ("vpn.last_seen", lookup("vpn", ["last_seen": "2026-1-5"])),
+            ("tor.last_seen", lookup("tor", ["last_seen": "tomorrow"])),
+            ("resproxy.first_seen", lookup("resproxy", ["first_seen": "2026-11-23T00:00:00Z"])),
+            ("pubproxy.last_seen", lookup("pubproxy", ["last_seen": " 2026-11-12"])),
+            ("bot.last_seen", lookup("bot", ["last_seen": "2026-11-12\n"])),
+            ("ssh.first_seen", lookup("ssh", ["first_seen": "2026-13-01"])),
+            ("smtp.last_seen", lookup("smtp", ["last_seen": "20261112"])),
+            ("web[0].first_seen", lookup("web", [web])),
+            ("dns_resolver.first_seen", lookup("dns_resolver", ["first_seen": "x"])),
+            ("bittorrent.last_seen", lookup("bittorrent", ["last_seen": "2025-02-29"])),
+        ]
+        for (name, body) in answers {
+            let stub = StubTransport(["1.1.1.1": .json(body)])
+            let failure = await #expect(throws: InternetDataError.self, "\(name)") {
+                try await client(stub, cache: nil, retries: 1).lookup("1.1.1.1")
+            }
+            #expect(try #require(failure).kind == .serverError, "\(name)")
+            #expect(try #require(failure).status == 200, "\(name)")
+            await #expect(stub.callCount == 2, "\(name)")
+
+            let batch = StubTransport(["1.1.1.1": .json(body), "9.9.9.9": .json(StubTransport.answer(for: "9.9.9.9"))])
+            let results = try await client(batch, cache: nil).lookupBatch(["1.1.1.1", "9.9.9.9"])
+            guard case .failure(let error) = results["1.1.1.1"] else {
+                Issue.record("a batch entry with a malformed \(name) was read")
+                continue
+            }
+            #expect(error.kind == .serverError, "\(name)")
+            guard case .success = results["9.9.9.9"] else {
+                Issue.record("a well-formed batch entry beside one with a malformed \(name) failed")
+                continue
+            }
+        }
+
+        var asn = Self.asnAnswer
+        asn["prefixes"] = [[
+            "prefix": "146.70.116.0/24", "peer_count": 3, "rpki_status": "valid", "first_seen": "2026-02-30",
+            "country": "AT", "size": 256, "other_origins": [Int](),
+        ]]
+        var dns = Self.domainAnswer
+        dns["dns"] = [
+            "a": [["ip": "192.0.2.1", "last_seen": "2026-11-1"]], "aaaa": [[String: Any]](), "mx": [[String: Any]](),
+            "ns": [[String: Any]](), "cname": [[String: Any]](),
+        ]
+        var disposable = Self.domainAnswer
+        disposable["is_disposable"] = true
+        disposable["disposable"] = ["first_seen": "monday"]
+        let others: [(String, String, @Sendable (InternetDataClient) async throws -> Void)] = [
+            ("prefixes[0].first_seen", "asn/9009", { _ = try await $0.lookupASN(9009) }),
+            ("dns.a[0].last_seen", "domain/example.com", { _ = try await $0.lookupDomain("example.com") }),
+            ("disposable.first_seen", "domain/example.org", { _ = try await $0.lookupDomain("example.org") }),
+        ]
+        let bodies = ["asn/9009": asn, "domain/example.com": dns, "domain/example.org": disposable]
+        for (name, route, call) in others {
+            let stub = StubTransport([route: .json(bodies[route] ?? [:])])
+            let failure = await #expect(throws: InternetDataError.self, "\(name)") {
+                try await call(client(stub, cache: nil, retries: 1))
+            }
+            #expect(try #require(failure).kind == .serverError, "\(name)")
+            await #expect(stub.callCount == 2, "\(name)")
+        }
+
+        var good = StubTransport.answer(for: "1.1.1.1")
+        good["vpn"] = ["last_seen": "2024-02-29"]
+        good["is_vpn"] = true
+        let stub = StubTransport(["1.1.1.1": .json(good)])
+        #expect(try await client(stub).lookup("1.1.1.1").vpn?.lastSeen == "2024-02-29")
+    }
+
     static func json(_ object: [String: Any]) -> String {
         String(decoding: (try? JSONSerialization.data(withJSONObject: object)) ?? Data(), as: UTF8.self)
     }

@@ -185,7 +185,7 @@ public struct InternetDataClient: Sendable {
                         kind: .serverError, message: "unexpected response: \(output)",
                     )
                 }
-                return LookupResult(try ok.body.json)
+                return try LookupResult(ok.body.json)
             }
         }
     }
@@ -221,7 +221,7 @@ public struct InternetDataClient: Sendable {
                         kind: .serverError, message: "unexpected response: \(output)",
                     )
                 }
-                return LookupResult(try ok.body.json)
+                return try LookupResult(ok.body.json)
             }
         }
     }
@@ -249,7 +249,7 @@ public struct InternetDataClient: Sendable {
                         kind: .serverError, message: "unexpected response: \(output)",
                     )
                 }
-                return AsnLookupResult(try ok.body.json)
+                return try AsnLookupResult(ok.body.json)
             }
         }
     }
@@ -279,7 +279,7 @@ public struct InternetDataClient: Sendable {
                         kind: .serverError, message: "unexpected response: \(output)",
                     )
                 }
-                return DomainLookupResult(try ok.body.json)
+                return try DomainLookupResult(ok.body.json)
             }
         }
     }
@@ -533,7 +533,11 @@ public struct InternetDataClient: Sendable {
                     answers[ip] = .failure(.unreadable("the entry for \(ip)", status: status))
                     continue
                 }
-                answers[ip] = .success(LookupResult(served))
+                guard let answer = try? LookupResult(served) else {
+                    answers[ip] = .failure(.unreadable("the entry for \(ip)", status: status))
+                    continue
+                }
+                answers[ip] = .success(answer)
             } else if let entry = envelope.errors?[ip] {
                 guard let failed = entry.value else {
                     answers[ip] = .failure(.unreadable("the error for \(ip)", status: status))

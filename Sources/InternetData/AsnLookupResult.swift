@@ -95,7 +95,7 @@ public struct AsnPrefix: Sendable, Hashable {
 }
 
 extension AsnLookupResult {
-    init(_ wire: Components.Schemas.AsnLookupResponse) {
+    init(_ wire: Components.Schemas.AsnLookupResponse) throws {
         self.asn = Int(asNumber: wire.asn)
         self.name = wire.name
         self.country = wire.country
@@ -110,7 +110,7 @@ extension AsnLookupResult {
         self.rpkiInvalid = wire.rpkiInvalid
         self.rpkiNotFound = wire.rpkiNotFound
         self.whois = wire.whois?.additionalProperties
-        self.prefixes = wire.prefixes?.map(AsnPrefix.init)
+        self.prefixes = try wire.prefixes?.map(AsnPrefix.init)
         self.rank = wire.rank
         self.tier1 = wire.tier1
         self.numUpstreams = wire.numUpstreams
@@ -126,11 +126,11 @@ extension AsnLookupResult {
 }
 
 extension AsnPrefix {
-    init(_ wire: Components.Schemas.AsnPrefix) {
+    init(_ wire: Components.Schemas.AsnPrefix) throws {
         self.prefix = wire.prefix
         self.peerCount = wire.peerCount
         self.rpkiStatus = wire.rpkiStatus
-        self.firstSeen = wire.firstSeen
+        self.firstSeen = try seenDay(wire.firstSeen, "prefixes.first_seen")
         self.country = wire.country
         self.size = wire.size
         self.otherOrigins = wire.otherOrigins

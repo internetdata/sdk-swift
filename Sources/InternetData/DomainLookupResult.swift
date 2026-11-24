@@ -110,7 +110,7 @@ public struct DomainWeb: Sendable, Hashable {
     public let title: String
     /// An English page's description.
     public let description: String
-    /// The day it was last read.
+    /// The day it was last read, empty when the crawl holds no page.
     public let lastSeen: String
     /// The external hosts it links to.
     public let links: DomainWebLinks
@@ -180,7 +180,7 @@ public struct DisposableDetail: Sendable, Hashable {
 }
 
 extension DomainLookupResult {
-    init(_ body: Components.Schemas.DomainLookupResponse) {
+    init(_ body: Components.Schemas.DomainLookupResponse) throws {
         self.domain = body.domain
         self.isRegistered = body.isRegistered
         self.isDisposable = body.isDisposable
@@ -189,13 +189,13 @@ extension DomainLookupResult {
         self.hasMx = body.hasMx
         self.hasNs = body.hasNs
         self.hasCname = body.hasCname
-        self.dns = body.dns.map(DomainDns.init)
+        self.dns = try body.dns.map(DomainDns.init)
         self.hosting = body.hosting?.map { DomainHost(ip: $0.ip, asn: Asn($0.asn.value1)) }
         self.cohostedDomains = body.cohostedDomains.map {
             CohostedDomains(ip: $0.ip, total: $0.total, domains: $0.domains)
         }
         self.ipRanges = body.ipRanges.map(DomainIpRanges.init)
-        self.disposable = body.disposable.map { DisposableDetail($0.value1) }
+        self.disposable = try body.disposable.map { try DisposableDetail($0.value1) }
         self.web = body.web.map {
             DomainWeb(
                 url: $0.url, title: $0.title, description: $0.description, lastSeen: $0.lastSeen,
@@ -210,12 +210,18 @@ extension DomainLookupResult {
 }
 
 extension DomainDns {
-    init(_ wire: Components.Schemas.DomainDns) {
-        self.a = wire.a.map { DnsAddressRecord(ip: $0.ip, lastSeen: $0.lastSeen) }
-        self.aaaa = wire.aaaa.map { DnsAddressRecord(ip: $0.ip, lastSeen: $0.lastSeen) }
-        self.mx = wire.mx.map { DnsMxRecord(priority: $0.priority, host: $0.host, lastSeen: $0.lastSeen) }
-        self.ns = wire.ns.map { DnsNsRecord(host: $0.host, lastSeen: $0.lastSeen) }
-        self.cname = wire.cname.map { DnsCnameRecord(target: $0.target, lastSeen: $0.lastSeen) }
+    init(_ wire: Components.Schemas.DomainDns) throws {
+        self.a = try wire.a.map { DnsAddressRecord(ip: $0.ip, lastSeen: try seenDay($0.lastSeen, "dns.a.last_seen")) }
+        self.aaaa = try wire.aaaa.map {
+            DnsAddressRecord(ip: $0.ip, lastSeen: try seenDay($0.lastSeen, "dns.aaaa.last_seen"))
+        }
+        self.mx = try wire.mx.map {
+            DnsMxRecord(priority: $0.priority, host: $0.host, lastSeen: try seenDay($0.lastSeen, "dns.mx.last_seen"))
+        }
+        self.ns = try wire.ns.map { DnsNsRecord(host: $0.host, lastSeen: try seenDay($0.lastSeen, "dns.ns.last_seen")) }
+        self.cname = try wire.cname.map {
+            DnsCnameRecord(target: $0.target, lastSeen: try seenDay($0.lastSeen, "dns.cname.last_seen"))
+        }
     }
 }
 
@@ -230,10 +236,11 @@ extension DomainIpRanges {
 }
 
 extension DisposableDetail {
-    init(_ wire: Components.Schemas.DisposableDetail) {
+    init(_ wire: Components.Schemas.DisposableDetail) throws {
         self.init(
-            confidence: wire.confidence, providers: wire.providers, firstSeen: wire.firstSeen,
-            lastSeen: wire.lastSeen,
+            confidence: wire.confidence, providers: wire.providers,
+            firstSeen: try seenDay(wire.firstSeen, "disposable.first_seen"),
+            lastSeen: try seenDay(wire.lastSeen, "disposable.last_seen"),
         )
     }
 }
