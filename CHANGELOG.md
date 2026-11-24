@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 3.2.0 - 2026-11-24
+
+### Features
+
+- Refuse a first_seen or last_seen that is no YYYY-MM-DD date ([`4b7d004`](https://github.com/internetdata/sdk-swift/commit/4b7d004ac3708976f99ad688b486b71349b079be))
+
 ## 3.1.1 - 2026-11-23
 
 ### Fixes
