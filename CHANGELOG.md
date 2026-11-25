@@ -2,6 +2,16 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 3.3.0 - 2026-11-25
+
+### Features
+
+- Send a visitor's user agent with a lookup, myIP or a batch ([`dc003c0`](https://github.com/internetdata/sdk-swift/commit/dc003c06315746d723f4e5b82c1d684e8afd31b4))
+
+### Fixes
+
+- Re-pin the spec to 2026.11.25: a paid member is "on a paid plan or the trial" ([`b81f0f0`](https://github.com/internetdata/sdk-swift/commit/b81f0f02e156cf99ebc45907c7b317885161e193))
+
 ## 3.2.0 - 2026-11-24
 
 ### Features
