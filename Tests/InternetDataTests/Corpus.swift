@@ -267,6 +267,9 @@ extension LookupResult {
             "smtp": smtp?.wire, "web": web.map { .array($0.map(\.wire)) },
             "dns_resolver": dnsResolver?.wire, "bittorrent": bittorrent?.wire, "whois": whois?.wire,
             "rwhois": rwhois?.wire, "hosted_domains": hostedDomains?.wire,
+            "user_agent": userAgent.map {
+                .object(["agent": .string($0.agent), "kind": .string($0.kind), "verdict": .string($0.verdict.rawValue)])
+            },
         ]
         for case (let name, let object?) in objects {
             fields[name] = object

@@ -44,6 +44,8 @@ extension LookupResult {
     /// IP's list empty), the shared objects with every member empty and AS 0, and
     /// `isBogon` set, as the API sets it.
     ///
+    /// `userAgent` is nil whatever the lookup sent: no request is made to judge it.
+    ///
     /// This is deliberately the WIDEST shape regardless of your plan, so do not
     /// infer which fields your plan includes from it.
     static func bogon(_ ip: String) -> LookupResult {
@@ -56,8 +58,8 @@ extension LookupResult {
             pubproxy: .empty, hosting: .empty, cdn: .empty, bot: .empty, carrier: .empty, satellite: .empty, ssh: .empty,
             smtp: .empty, web: [], dnsResolver: .empty, bittorrent: .empty,
             location: .empty, asn: .empty, company: .empty, hostname: "", abuse: .empty,
-            whois: .empty, rwhois: .empty, hostedDomains: HostedDomains(total: 0, domains: []), trialExpired: nil,
-            capReached: nil,
+            whois: .empty, rwhois: .empty, hostedDomains: HostedDomains(total: 0, domains: []), userAgent: nil,
+            trialExpired: nil, capReached: nil,
         )
     }
 }

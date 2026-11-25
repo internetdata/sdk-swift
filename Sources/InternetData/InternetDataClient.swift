@@ -121,6 +121,19 @@ public struct InternetDataClient: Sendable {
     public func lookup(
         _ ip: String, retries: Int? = nil, timeout: Duration? = nil,
     ) async throws -> LookupResult {
+        try await lookup(ip, userAgent: nil, retries: retries, timeout: timeout)
+    }
+
+    /// Classify one address for a request whose `User-Agent` is `userAgent`.
+    ///
+    /// As ``lookup(_:retries:timeout:)``, and with every field the answer carries
+    /// ``LookupResult/userAgent``: the agent it names and whether this address
+    /// bears it out. Cached apart from the address's answer without one, and
+    /// from another agent's. A `nil` or empty one is none, and a bogon, answered
+    /// locally, carries no verdict.
+    public func lookup(
+        _ ip: String, userAgent: String?, retries: Int? = nil, timeout: Duration? = nil,
+    ) async throws -> LookupResult {
         // Refused before a bogon or a cached answer, which need no request, or the
         // bound would be refused only when one went out.
         if let timeout {
@@ -142,24 +155,26 @@ public struct InternetDataClient: Sendable {
         if isBogon(ip) {
             return LookupResult.bogon(ip)
         }
+        let userAgent = agent(userAgent)
         guard let cache else {
-            return try await fetch(ip, retries: retries, timeout: timeout)
+            return try await fetch(ip, userAgent: userAgent, retries: retries, timeout: timeout)
         }
-        // Concurrent misses for one address share one request: the first leads it
-        // and the rest wait for its landing, a batch's included.
+        // Concurrent misses for one address and agent share one request: the first
+        // leads it and the rest wait for its landing, a batch's included.
+        let key = ResultCache.key(ip, userAgent)
         while true {
-            switch await cache.claim(ip) {
+            switch await cache.claim(key) {
             case .hit(let hit):
                 return hit
             case .lead(let flight):
                 let result: LookupResult
                 do {
-                    result = try await fetch(ip, retries: retries, timeout: timeout)
+                    result = try await fetch(ip, userAgent: userAgent, retries: retries, timeout: timeout)
                 } catch {
-                    await cache.land(ip, flight, Self.landing(for: error))
+                    await cache.land(key, flight, Self.landing(for: error))
                     throw error
                 }
-                await cache.land(ip, flight, .served(result))
+                await cache.land(key, flight, .served(result))
                 return result
             case .wait(let ticket):
                 switch await cache.collect(ticket) {
@@ -176,10 +191,12 @@ public struct InternetDataClient: Sendable {
         }
     }
 
-    private func fetch(_ ip: String, retries: Int?, timeout: Duration?) async throws -> LookupResult {
+    private func fetch(
+        _ ip: String, userAgent: String?, retries: Int?, timeout: Duration?,
+    ) async throws -> LookupResult {
         try await withRetry(retries ?? self.retries) {
             try await withDeadline(timeout ?? self.timeout) {
-                let output = try await api.lookupIp(path: .init(ip: ip))
+                let output = try await api.lookupIp(path: .init(ip: ip), query: .init(userAgent: userAgent))
                 guard case .ok(let ok) = output else {
                     throw InternetDataError(
                         kind: .serverError, message: "unexpected response: \(output)",
@@ -210,12 +227,22 @@ public struct InternetDataClient: Sendable {
     ///   - retries: Overrides the client's retry count for this call.
     ///   - timeout: Bounds each attempt, as on ``lookup(_:retries:timeout:)``.
     public func myIP(retries: Int? = nil, timeout: Duration? = nil) async throws -> LookupResult {
+        try await myIP(userAgent: nil, retries: retries, timeout: timeout)
+    }
+
+    /// Classify the address this client is calling from, for a request whose
+    /// `User-Agent` is `userAgent`, as ``lookup(_:userAgent:retries:timeout:)``
+    /// does. Not cached, as ``myIP(retries:timeout:)`` is not.
+    public func myIP(
+        userAgent: String?, retries: Int? = nil, timeout: Duration? = nil,
+    ) async throws -> LookupResult {
         if let retries {
             try checkRetries(retries)
         }
+        let userAgent = agent(userAgent)
         return try await withRetry(retries ?? self.retries) {
             try await withDeadline(timeout ?? self.timeout) {
-                let output = try await api.lookupMyIp()
+                let output = try await api.lookupMyIp(query: .init(userAgent: userAgent))
                 guard case .ok(let ok) = output else {
                     throw InternetDataError(
                         kind: .serverError, message: "unexpected response: \(output)",
@@ -347,6 +374,21 @@ public struct InternetDataClient: Sendable {
     public func lookupBatch(
         _ ips: some Sequence<String>, options: BatchOptions = BatchOptions(),
     ) async throws -> BatchResults {
+        try await lookupBatch(ips, userAgents: [:], options: options)
+    }
+
+    /// Classifies many addresses, each for the request whose `User-Agent`
+    /// `userAgents` holds under it, as ``lookupBatch(_:options:)`` does.
+    ///
+    /// `userAgents` is keyed by the address as it is in `ips`; with every field
+    /// that address's answer carries ``LookupResult/userAgent``, as a lookup's
+    /// does, and is cached on the pair. An address it leaves out, or names with
+    /// an empty agent, is sent without one. Two spellings of one IPv4-mapped
+    /// address are sent once, with the first spelling's agent.
+    public func lookupBatch(
+        _ ips: some Sequence<String>, userAgents: [String: String],
+        options: BatchOptions = BatchOptions(),
+    ) async throws -> BatchResults {
         let limit = options.concurrency ?? concurrency
         // A group primed with no children would wait for none, forever.
         guard limit > 0 else {
@@ -370,11 +412,14 @@ public struct InternetDataClient: Sendable {
         var seenAsked: Set<String> = []
         var keys: [String] = []
         var seen: Set<String> = []
+        // Each sent address's agent, under the address as it is sent.
+        var agents: [String: String] = [:]
         for ip in ips where seenAsked.insert(ip).inserted {
             asked.append(ip)
             let carried = unmapped(ip)
             if seen.insert(carried).inserted {
                 keys.append(carried)
+                agents[carried] = agent(userAgents[ip])
             }
         }
 
@@ -395,9 +440,9 @@ public struct InternetDataClient: Sendable {
         var led: [String: UUID] = [:]
         var waiting: [(String, UUID)] = []
         if let cache {
-            let claims = await cache.board(served)
+            let claims = await cache.board(served.map { ResultCache.key($0, agents[$0]) })
             for ip in served {
-                switch claims[ip] {
+                switch claims[ResultCache.key(ip, agents[ip])] {
                 case .hit(let hit):
                     outcomes[ip] = .success(hit)
                 case .lead(let flight):
@@ -423,7 +468,8 @@ public struct InternetDataClient: Sendable {
             try await withThrowingTaskGroup(of: [(String, BatchResults.Outcome)].self) { group in
                 var next = 0
                 while next < min(limit, chunks.count) {
-                    guard group.addTaskUnlessCancelled(operation: chunkTask(chunks[next], led, options)) else {
+                    let task = chunkTask(chunks[next], agents, led, options)
+                    guard group.addTaskUnlessCancelled(operation: task) else {
                         break
                     }
                     next += 1
@@ -435,22 +481,22 @@ public struct InternetDataClient: Sendable {
                     guard next < chunks.count else {
                         continue
                     }
-                    group.addTask(operation: chunkTask(chunks[next], led, options))
+                    group.addTask(operation: chunkTask(chunks[next], agents, led, options))
                     next += 1
                 }
             }
         } catch {
-            await abandon(led)
+            await abandon(led, agents)
             throw error
         }
         // A chunk never started, its batch cancelled first, landed nothing.
-        await abandon(led)
+        await abandon(led, agents)
         // Covers the one case no child can report: cancellation before the group
         // was primed, where nothing ran and the result would otherwise be keys
         // with no outcome behind them.
         try Task.checkCancellation()
         for (ip, ticket) in waiting {
-            outcomes[ip] = try await collect(ip, ticket, options)
+            outcomes[ip] = try await collect(ip, agents[ip], ticket, options)
         }
         var byAsked: [String: BatchResults.Outcome] = [:]
         byAsked.reserveCapacity(asked.count)
@@ -462,19 +508,20 @@ public struct InternetDataClient: Sendable {
 
     /// One chunk, sent, with each answer landed for whoever waits on its address.
     private func chunkTask(
-        _ chunk: [String], _ led: [String: UUID], _ options: BatchOptions,
+        _ chunk: [String], _ agents: [String: String], _ led: [String: UUID], _ options: BatchOptions,
     ) -> @Sendable () async throws -> [(String, BatchResults.Outcome)] {
         { [self] in
-            let answers = try await sendChunk(chunk, options)
+            let answers = try await sendChunk(chunk, agents, options)
             for (ip, outcome) in answers {
                 guard let cache, let flight = led[ip] else {
                     continue
                 }
+                let key = ResultCache.key(ip, agents[ip])
                 switch outcome {
                 case .success(let result):
-                    await cache.land(ip, flight, .served(result))
+                    await cache.land(key, flight, .served(result))
                 case .failure(let error):
-                    await cache.land(ip, flight, .failed(error))
+                    await cache.land(key, flight, .failed(error))
                 }
             }
             return answers
@@ -486,13 +533,18 @@ public struct InternetDataClient: Sendable {
     /// retries exhausted - becomes every address's error, exactly as it would
     /// have been had each been looked up alone.
     private func sendChunk(
-        _ chunk: [String], _ options: BatchOptions,
+        _ chunk: [String], _ agents: [String: String], _ options: BatchOptions,
     ) async throws -> [(String, BatchResults.Outcome)] {
+        // Only where an address in this chunk carries one: never an empty map.
+        var userAgents: [String: String] = [:]
+        for ip in chunk {
+            userAgents[ip] = agents[ip]
+        }
         let answers: [String: BatchResults.Outcome]
         do {
-            answers = try await withRetry(options.retries ?? retries) {
+            answers = try await withRetry(options.retries ?? retries) { [userAgents] in
                 try await withDeadline(options.timeout ?? timeout) {
-                    try await postBatch(chunk)
+                    try await postBatch(chunk, userAgents)
                 }
             }
         } catch is CancellationError {
@@ -512,12 +564,16 @@ public struct InternetDataClient: Sendable {
     /// One `POST /batch` through the client's middlewares, its answer read entry
     /// by entry, so one entry it cannot read is that address's error alone and
     /// only an answer holding neither map, or none at all, fails the chunk.
-    private func postBatch(_ chunk: [String]) async throws -> [String: BatchResults.Outcome] {
+    private func postBatch(
+        _ chunk: [String], _ userAgents: [String: String],
+    ) async throws -> [String: BatchResults.Outcome] {
         var fields = HTTPFields()
         fields[.accept] = "application/json"
         fields[.contentType] = "application/json"
         let request = HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/batch", headerFields: fields)
-        let payload = try JSONEncoder().encode(Components.Schemas.BatchLookupRequest(ips: chunk))
+        let payload = try JSONEncoder().encode(Components.Schemas.BatchLookupRequest(
+            ips: chunk, userAgents: userAgents.isEmpty ? nil : .init(additionalProperties: userAgents),
+        ))
         let (response, responseBody) = try await send(request, HTTPBody(payload), operationID: "lookupBatch")
         let status = Int(response.status.code)
         guard let bytes = try? await ArraySlice(collecting: responseBody ?? HTTPBody(), upTo: .max),
@@ -570,19 +626,19 @@ public struct InternetDataClient: Sendable {
     }
 
     // Every flight this batch led and has not landed, so no waiter waits on it.
-    private func abandon(_ led: [String: UUID]) async {
+    private func abandon(_ led: [String: UUID], _ agents: [String: String]) async {
         guard let cache else {
             return
         }
         for (ip, flight) in led {
-            await cache.land(ip, flight, .abandoned)
+            await cache.land(ResultCache.key(ip, agents[ip]), flight, .abandoned)
         }
     }
 
     // An address another call had in flight when this batch boarded: its answer,
     // or, its leader cancelled, this batch's own lookup of it.
     private func collect(
-        _ ip: String, _ ticket: UUID, _ options: BatchOptions,
+        _ ip: String, _ userAgent: String?, _ ticket: UUID, _ options: BatchOptions,
     ) async throws -> BatchResults.Outcome {
         guard let cache else {
             throw CancellationError()
@@ -596,7 +652,9 @@ public struct InternetDataClient: Sendable {
             throw CancellationError()
         case .abandoned:
             do {
-                return .success(try await lookup(ip, retries: options.retries, timeout: options.timeout))
+                return .success(try await lookup(
+                    ip, userAgent: userAgent, retries: options.retries, timeout: options.timeout,
+                ))
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
@@ -710,6 +768,15 @@ extension InternetDataClient {
             self.timeout = timeout
         }
     }
+}
+
+// An empty user agent is none, as the API reads `user_agent=`. A long one is
+// sent as it is: the API cuts it at 1024 characters and answers.
+private func agent(_ userAgent: String?) -> String? {
+    guard let userAgent, !userAgent.isEmpty else {
+        return nil
+    }
+    return userAgent
 }
 
 // Every path the generated client appends begins with a slash, and the transport

@@ -45,7 +45,7 @@ print(result.isTor)              // false
 
 ### With an API key
 
-A paid plan answers every field: the VPN, proxy, hosting and CDN flags and the provider and confidence behind each, whose bot uses the address and whether its operator vouches for it, the city and the coordinates, the Whois records, and the hosted domains, a count and the 10 most popular. Its quotas differ only in how many lookups they include, and a free account tries every field. Create a key in the [console](https://app.internetdata.io), then pass it in:
+A paid plan answers every field: the VPN, proxy, hosting and CDN flags and the provider and confidence behind each, whose bot uses the address and whether its operator vouches for it, whether a request's user agent is borne out by its address ([below](#a-visitors-user-agent)), the city and the coordinates, the Whois records, and the hosted domains, a count and the 10 most popular. Its quotas differ only in how many lookups they include, and a free account tries every field. Create a key in the [console](https://app.internetdata.io), then pass it in:
 
 ```swift
 let client = InternetDataClient(apiKey: ProcessInfo.processInfo.environment["INTERNETDATA_API_KEY"]!)
@@ -70,6 +70,27 @@ print(result.ip)   // the address we saw this call come from
 ```
 
 Same answer `lookup` would give for that address, and the same cost against your allowance. It is deliberately not cached: which address you are is the whole question, and a machine that moves between networks would otherwise be told where it used to be.
+
+### A visitor's user agent
+
+Pass the `User-Agent` header of the request you are deciding on, and with every field the answer carries `userAgent`: the agent it names, what kind of client that is, and whether this address bears it out. A request claiming to be Googlebot from an address Google does not vouch for comes back `spoofed`:
+
+```swift
+let result = try await client.lookup(visitorIP, userAgent: userAgentHeader)
+if let ua = result.userAgent {
+    print(ua.agent)                  // Googlebot
+    print(ua.kind)                   // bot
+    print(ua.verdict == .verified)   // true: Google vouches for this address
+}
+```
+
+`verdict` is `.verified`, `.spoofed`, `.unverifiable` (a bot nothing published can confirm) or `.notBot` (a browser, an app or a script), and reads a value the API adds later as itself ([below](#a-value-the-api-adds)). `myIP(userAgent:)` takes one too, and a batch takes each address's, keyed by the address as you list it:
+
+```swift
+let results = try await client.lookupBatch(ips, userAgents: ["66.249.66.1": googlebotHeader])
+```
+
+An answer is cached per address and user agent, so the same address with another agent, or with none, is a request of its own. An empty user agent is none, and one longer than 1024 characters is sent and cut there by the API. A private or reserved address is answered locally and carries no `userAgent`. Unlimited's answer never carries it.
 
 ### An AS or a domain
 
@@ -366,7 +387,7 @@ result.capReached == true   // a paid key is past its overage cap
 
 ### A value the API adds
 
-A plan's tier, a database's standing and license type, a format and a download's outcome are each a struct with a constant per value this release knows. From 3.0.0, a value the API adds later reads as itself rather than failing the call, so compare with `==` and keep a `default:` in a `switch`:
+A plan's tier, a database's standing and license type, a format, a download's outcome and a user agent's verdict are each a struct with a constant per value this release knows. From 3.0.0, a value the API adds later reads as itself rather than failing the call, so compare with `==` and keep a `default:` in a `switch`:
 
 ```swift
 if database.standing == .licensed { /* download it */ }

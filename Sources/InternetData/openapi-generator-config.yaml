@@ -20,3 +20,4 @@ typeOverrides:
     EntitlementPlan: WireEntitlementPlan
     Database: WireDatabase
     Download: WireDownload
+    UserAgentVerdict: WireUserAgentVerdict

@@ -14,7 +14,8 @@ public struct CacheOptions: Sendable, Hashable {
     }
 }
 
-/// A least-recently-used cache with a time to live, keyed by address.
+/// A least-recently-used cache with a time to live, keyed by address, and by the
+/// user agent a lookup sent with it (``key(_:_:)``).
 ///
 /// One instance per client, never global: two clients with different keys are on
 /// different plans and entitled to different fields, so a shared cache would
@@ -90,6 +91,17 @@ actor ResultCache {
     }
 
     static let reducedTTL: Duration = .seconds(60)
+
+    /// The entry for `ip` looked up with `userAgent`. An answer to a lookup that
+    /// sent one carries its verdict, so it is held apart from the address's plain
+    /// answer and from another agent's. NUL never occurs in an address, so no two
+    /// pairs share a key; an empty agent is none, as the API reads it.
+    static func key(_ ip: String, _ userAgent: String?) -> String {
+        guard let userAgent, !userAgent.isEmpty else {
+            return ip
+        }
+        return ip + "\u{0}" + userAgent
+    }
 
     /// The answer to `ip` if it is fresh, or else whether this caller sends the
     /// request (``Claim/lead(_:)``, landed with ``land(_:_:_:)``) or waits for the
