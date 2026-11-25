@@ -45,7 +45,7 @@ print(result.isTor)              // false
 
 ### With an API key
 
-Every paid plan answers every field: the VPN, proxy, hosting and CDN flags and the provider and confidence behind each, whose bot uses the address and whether its operator vouches for it, the city and the coordinates, the Whois records, and the hosted domains, a count and the 10 most popular. The plans differ only in how many lookups they include, and a free account tries every field. Create a key in the [console](https://app.internetdata.io), then pass it in:
+A paid plan answers every field: the VPN, proxy, hosting and CDN flags and the provider and confidence behind each, whose bot uses the address and whether its operator vouches for it, the city and the coordinates, the Whois records, and the hosted domains, a count and the 10 most popular. Its quotas differ only in how many lookups they include, and a free account tries every field. Create a key in the [console](https://app.internetdata.io), then pass it in:
 
 ```swift
 let client = InternetDataClient(apiKey: ProcessInfo.processInfo.environment["INTERNETDATA_API_KEY"]!)
@@ -88,8 +88,8 @@ A paid plan adds an AS's Whois record, the prefixes it announces, its rank, Tier
 
 ```swift
 let acct = try await client.myEntitlement()
-print(acct.plan.key)          // max
-print(acct.plan.name)         // Max, the name to show
+print(acct.plan.key)          // data_4
+print(acct.plan.name)         // Data, the name to show
 print(acct.usage.requests)    // 580
 print(acct.usage.windowEnd)   // when the allowance resets
 ```
