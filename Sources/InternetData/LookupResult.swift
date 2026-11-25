@@ -18,24 +18,24 @@ public struct LookupResult: Sendable, Hashable {
     /// Reserved space, answered from the address alone. A bogon never reaches
     /// the network: the client answers it in the shape the API does.
     public let isBogon: Bool
-    /// In VPN IP: a VPN service's server. Paid plans and the trial.
+    /// In VPN IP: a VPN service's server. On a paid plan or the trial.
     public let isVpn: Bool?
     /// In Tor IP: a Tor exit.
     public let isTor: Bool
     /// In Relay IP: an anonymizing relay such as iCloud Private Relay.
     public let isRelay: Bool
-    /// In Residential Proxy IP's 90-day window. Paid plans and the trial.
+    /// In Residential Proxy IP's 90-day window. On a paid plan or the trial.
     public let isResproxy: Bool?
-    /// In Datacenter Proxy IP's 90-day window. Paid plans and the trial.
+    /// In Datacenter Proxy IP's 90-day window. On a paid plan or the trial.
     public let isDcproxy: Bool?
-    /// In Mobile Proxy IP's 90-day window. Paid plans and the trial.
+    /// In Mobile Proxy IP's 90-day window. On a paid plan or the trial.
     public let isMobproxy: Bool?
     /// In Public Proxy IP: a public proxy listens here, or its traffic left
-    /// from here. Paid plans and the trial.
+    /// from here. On a paid plan or the trial.
     public let isPubproxy: Bool?
-    /// In Hosting IP: a hosting or cloud network. Paid plans and the trial.
+    /// In Hosting IP: a hosting or cloud network. On a paid plan or the trial.
     public let isHosting: Bool?
-    /// In CDN IP: a content delivery network. Paid plans and the trial.
+    /// In CDN IP: a content delivery network. On a paid plan or the trial.
     public let isCdn: Bool?
     /// In Bot IP: an automated client's address, such as a search engine's or an
     /// AI company's crawler, an uptime monitor, an internet scanner or a webhook
@@ -58,7 +58,7 @@ public struct LookupResult: Sendable, Hashable {
     /// In BitTorrent IP: a BitTorrent client was seen here in the last 90 days.
     public let isBittorrent: Bool
 
-    /// VPN IP's row, empty when `isVpn` is false. Paid plans and the trial.
+    /// VPN IP's row, empty when `isVpn` is false. On a paid plan or the trial.
     public let vpn: ClassDetail?
     /// Tor IP's row, empty when `isTor` is false.
     public let tor: ClassDetail
@@ -70,7 +70,7 @@ public struct LookupResult: Sendable, Hashable {
     public let pubproxy: PubproxyDetail?
     public let hosting: ClassDetail?
     public let cdn: ClassDetail?
-    /// Bot IP's row, empty when ``isBot`` is false. Paid plans and the trial.
+    /// Bot IP's row, empty when ``isBot`` is false. On a paid plan or the trial.
     public let bot: BotDetail?
     public let carrier: CarrierDetail?
     public let satellite: SatelliteDetail?
@@ -363,7 +363,7 @@ public struct BitTorrentDetail: Sendable, Hashable {
 }
 
 /// Where the address is. The first ten members are on every plan, an empty
-/// string where unknown; the rest are on paid plans and the trial.
+/// string where unknown; the rest are on a paid plan or the trial.
 public struct Location: Sendable, Hashable {
     /// The continent code, e.g. `EU`.
     public let continent: String
@@ -423,15 +423,15 @@ public struct Asn: Sendable, Hashable {
 public struct Company: Sendable, Hashable {
     public let name: String
     public let domain: String
-    /// `hosting`, `isp`, `business`, `education` or `government`. Paid plans and
-    /// the trial.
+    /// `hosting`, `isp`, `business`, `education` or `government`. On a paid plan
+    /// or the trial.
     public let type: String?
-    /// ISO 3166 country code. Paid plans and the trial.
+    /// ISO 3166 country code. On a paid plan or the trial.
     public let country: String?
 }
 
 /// Where to report abuse from the address, from IP Abuse Contact. Everything but
-/// `email` is on paid plans and the trial.
+/// `email` is on a paid plan or the trial.
 public struct AbuseContact: Sendable, Hashable {
     public let email: String
     public let name: String?

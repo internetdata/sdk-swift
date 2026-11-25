@@ -17,47 +17,47 @@ public struct AsnLookupResult: Sendable, Hashable {
     public let allocated: String
     /// Its operator's domain.
     public let domain: String
-    /// The kind of network it runs. Paid plans and the trial.
+    /// The kind of network it runs. On a paid plan or the trial.
     public let type: String?
-    /// The IPv4 addresses it announces. Paid plans and the trial.
+    /// The IPv4 addresses it announces. On a paid plan or the trial.
     public let numIps: Int?
-    /// The IPv4 prefixes it announces. Paid plans and the trial.
+    /// The IPv4 prefixes it announces. On a paid plan or the trial.
     public let numPrefixes4: Int?
-    /// The IPv6 prefixes it announces. Paid plans and the trial.
+    /// The IPv6 prefixes it announces. On a paid plan or the trial.
     public let numPrefixes6: Int?
-    /// Its announcements RPKI calls valid. Paid plans and the trial.
+    /// Its announcements RPKI calls valid. On a paid plan or the trial.
     public let rpkiValid: Int?
-    /// Its announcements RPKI calls invalid. Paid plans and the trial.
+    /// Its announcements RPKI calls invalid. On a paid plan or the trial.
     public let rpkiInvalid: Int?
-    /// Its announcements with no RPKI record. Paid plans and the trial.
+    /// Its announcements with no RPKI record. On a paid plan or the trial.
     public let rpkiNotFound: Int?
     /// Its ASN Whois record, every column, empty where the registry states
-    /// nothing. Paid plans and the trial.
+    /// nothing. On a paid plan or the trial.
     public let whois: [String: String]?
-    /// What it announces, IPv4 then IPv6, up to 20000 a family. Paid plans and
-    /// the trial.
+    /// What it announces, IPv4 then IPv6, up to 20000 a family. On a paid plan
+    /// or the trial.
     public let prefixes: [AsnPrefix]?
     /// Its rank in ASN Extended by customer cone, 1 the largest; 0 for an AS
-    /// seen in no AS path. Paid plans and the trial.
+    /// seen in no AS path. On a paid plan or the trial.
     public let rank: Int?
     /// Whether it is one of the transit-free networks at the top of the
-    /// hierarchy. Paid plans and the trial.
+    /// hierarchy. On a paid plan or the trial.
     public let tier1: Bool?
-    /// How many AS numbers it gets transit from. Paid plans and the trial.
+    /// How many AS numbers it gets transit from. On a paid plan or the trial.
     public let numUpstreams: Int?
-    /// Those AS numbers, ascending, up to 20000. Paid plans and the trial.
+    /// Those AS numbers, ascending, up to 20000. On a paid plan or the trial.
     public let upstreams: [Int]?
     /// How many AS numbers it exchanges its own and its customers' routes with.
-    /// Paid plans and the trial.
+    /// On a paid plan or the trial.
     public let numPeers: Int?
-    /// Those AS numbers, ascending, up to 20000. Paid plans and the trial.
+    /// Those AS numbers, ascending, up to 20000. On a paid plan or the trial.
     public let peers: [Int]?
-    /// How many AS numbers it provides transit to. Paid plans and the trial.
+    /// How many AS numbers it provides transit to. On a paid plan or the trial.
     public let numDownstreams: Int?
-    /// Those AS numbers, ascending, up to 20000. Paid plans and the trial.
+    /// Those AS numbers, ascending, up to 20000. On a paid plan or the trial.
     public let downstreams: [Int]?
-    /// How many registered domains it hosts, and the 10 most popular. Paid plans
-    /// and the trial.
+    /// How many registered domains it hosts, and the 10 most popular. On a paid plan
+    /// or the trial.
     public let hostedDomains: AsnHostedDomains?
     /// On answers to a key on the free plan only: `false` while its organization's
     /// trial of every field lasts, `true` once the answer has Unlimited's.

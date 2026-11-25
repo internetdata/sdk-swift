@@ -12,34 +12,34 @@ public struct DomainLookupResult: Sendable, Hashable {
     public let domain: String
     /// In Domain List: a registered domain.
     public let isRegistered: Bool
-    /// In Disposable Domain. Paid plans and the trial.
+    /// In Disposable Domain. On a paid plan or the trial.
     public let isDisposable: Bool?
     public let hasA: Bool
     public let hasAaaa: Bool
     public let hasMx: Bool
     public let hasNs: Bool
     public let hasCname: Bool
-    /// Its records in Domain DNS, up to 100 a type. Paid plans and the trial.
+    /// Its records in Domain DNS, up to 100 a type. On a paid plan or the trial.
     public let dns: DomainDns?
     /// The network announcing each address in `dns.a` and then `dns.aaaa`, from
-    /// IP ASN; empty where it resolves to none. Paid plans and the trial.
+    /// IP ASN; empty where it resolves to none. On a paid plan or the trial.
     public let hosting: [DomainHost]?
     /// The other registered domains on its first IPv4 address, from IP Hosted
-    /// Domains. Paid plans and the trial.
+    /// Domains. On a paid plan or the trial.
     public let cohostedDomains: CohostedDomains?
-    /// The organization's IP ranges, from Domain IP Ranges. Paid plans and the
-    /// trial.
+    /// The organization's IP ranges, from Domain IP Ranges. On a paid plan
+    /// or the trial.
     public let ipRanges: DomainIpRanges?
-    /// Disposable Domain's row, empty when `isDisposable` is false. Paid plans
-    /// and the trial.
+    /// Disposable Domain's row, empty when `isDisposable` is false. On a paid plan
+    /// or the trial.
     public let disposable: DisposableDetail?
-    /// What our crawl last read of its own home page. Paid plans and the trial.
+    /// What our crawl last read of its own home page. On a paid plan or the trial.
     public let web: DomainWeb?
-    /// The registered domains whose home page redirects to it. Paid plans and
-    /// the trial.
+    /// The registered domains whose home page redirects to it. On a paid plan
+    /// or the trial.
     public let redirects: DomainRedirects?
-    /// The registered domains whose home page links to it. Paid plans and the
-    /// trial.
+    /// The registered domains whose home page links to it. On a paid plan
+    /// or the trial.
     public let backlinks: DomainBacklinks?
     /// On answers to a key on the free plan only: `false` while its organization's
     /// trial of every field lasts, `true` once the answer has Unlimited's.
