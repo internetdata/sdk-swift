@@ -123,6 +123,23 @@ struct KeyedLookupTests {
         }
     }
 
+    // Googlebot's own address and agent: verified wherever the answer has every
+    // field, and no verdict at all once the trial is spent, as Unlimited's.
+    @Test("a user agent sent with a lookup comes back judged, while the answer has every field", Credential.needsKey)
+    func aUserAgentIsJudged() async throws {
+        let transport = RecordingTransport()
+        let googlebot = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+        let result = try await stagingClient(transport: transport).lookup("66.249.66.1", userAgent: googlebot)
+
+        #expect(await transport.facts.allSatisfy { $0.carriedKey }, "the staging key never reached the wire")
+        if result.trialExpired == true {
+            #expect(result.userAgent == nil, "Unlimited's answer carries a verdict")
+        } else {
+            let verdict = try #require(result.userAgent, "an answer with every field carries no verdict")
+            #expect(verdict.verdict == .verified, "Googlebot's agent on its own address reads \(verdict.verdict)")
+        }
+    }
+
     @Test("myEntitlement reads the key's plan and its window", Credential.needsKey)
     func myEntitlementReadsThePlan() async throws {
         let transport = RecordingTransport()
@@ -201,6 +218,7 @@ extension LookupResult {
             "whois": whois != nil, "rwhois": rwhois != nil, "hosted_domains": hostedDomains != nil,
             "location.city": location.city != nil, "asn.rpki_status": asn.rpkiStatus != nil,
             "company.type": company.type != nil, "abuse.phone": abuse.phone != nil,
+            "user_agent": userAgent != nil,
         ]
         for (name, present) in optional where present {
             fields.insert(name)
