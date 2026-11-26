@@ -12,6 +12,14 @@ import Testing
 struct ConformanceTests {
     let corpus = Corpus.shared
 
+    // Held at their public type until the next major: these eight are `Bool`, so
+    // an answer without one reads false, where every other absent member reads
+    // absent. The one list the check below makes that exception for.
+    static let heldFlags = [
+        "is_bot", "is_carrier", "is_satellite", "is_ssh", "is_smtp", "is_web", "is_dns_resolver",
+        "is_bittorrent",
+    ]
+
     /// The corpus is worth nothing if a rename quietly empties it.
     @Test("the corpus carries every fixture family")
     func corpusIsPopulated() {
@@ -103,7 +111,11 @@ struct ConformanceTests {
             let stub = StubTransport([route: .init(status: testCase.status, body: testCase.body.encoded)])
             let wire = try await call(testClient(stub))
 
-            #expect(wire == testCase.body.normalized, "\(label): the answer is not what was served")
+            let served = testCase.body.normalized
+            #expect(
+                wire == (testCase.call == "lookup" ? Self.readingHeldFlags(served) : served),
+                "\(label): the answer is not what was served",
+            )
             for (name, want) in testCase.expect.present {
                 #expect(wire[name] == want.normalized, "\(label): \(name)")
             }
@@ -119,7 +131,13 @@ struct ConformanceTests {
                 #expect(wire[name] == .object([:]) || wire[name] == .array([]), "\(label): \(name) must be empty")
             }
             for name in testCase.expect.absent {
-                #expect(wire[name] == nil, "\(label): \(name) must be ABSENT, not false or empty")
+                if Self.heldFlags.contains(name) {
+                    #expect(
+                        wire[name] == .bool(false), "\(label): \(name) is held at Bool, so absent reads false",
+                    )
+                } else {
+                    #expect(wire[name] == nil, "\(label): \(name) must be ABSENT, not false or empty")
+                }
             }
             for (object, names) in testCase.expect.absentIn ?? [:] {
                 for name in names {
@@ -562,6 +580,18 @@ extension ConformanceTests {
             case .database: _ = try await client.database.metadata(id: "bogon_ip_v1")
             }
         }
+    }
+
+    /// A served address answer as this library reads it: a held flag it does not
+    /// carry is false.
+    static func readingHeldFlags(_ served: JSONValue) -> JSONValue {
+        guard case .object(var members) = served else {
+            return served
+        }
+        for name in heldFlags where members[name] == nil {
+            members[name] = .bool(false)
+        }
+        return .object(members)
     }
 
     /// Where a lookup case is served from, and the call that reads it back, or

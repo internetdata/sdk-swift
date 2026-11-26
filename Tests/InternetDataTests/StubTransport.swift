@@ -69,9 +69,7 @@ final class StubTransport: ClientTransport {
     /// spec requires and nothing else.
     static func answer(for ip: String) -> [String: Any] {
         [
-            "ip": ip, "is_bogon": false, "is_tor": false, "is_relay": false, "is_bot": false, "is_anycast": false,
-            "is_carrier": false, "is_satellite": false, "is_ssh": false, "is_smtp": false,
-            "is_web": false, "is_dns_resolver": false, "is_bittorrent": false,
+            "ip": ip, "is_bogon": false, "is_tor": false, "is_relay": false, "is_anycast": false,
             "tor": [String: Any](), "relay": [String: Any](),
             "location": [
                 "continent": "EU", "continent_name": "Europe", "country": "AT",

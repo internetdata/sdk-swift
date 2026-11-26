@@ -11,6 +11,12 @@
 /// A detail object that is present but empty means the flag above it is false,
 /// and Web IP's list is empty when ``isWeb`` is. A populated one always carries
 /// every one of its keys.
+///
+/// The exception is eight flags that stay `Bool`: ``isBot``, ``isCarrier``,
+/// ``isSatellite``, ``isSsh``, ``isSmtp``, ``isWeb``, ``isDnsResolver`` and
+/// ``isBittorrent``. Unlimited does not answer them, and there they read `false`;
+/// the detail object beside each is `nil` there, which tells that apart from a
+/// plan that checked and found nothing.
 public struct LookupResult: Sendable, Hashable {
     /// The address that was looked up, as parsed: `::ffff:a.b.c.d` answers as
     /// `a.b.c.d`.
@@ -39,23 +45,30 @@ public struct LookupResult: Sendable, Hashable {
     public let isCdn: Bool?
     /// In Bot IP: an automated client's address, such as a search engine's or an
     /// AI company's crawler, an uptime monitor, an internet scanner or a webhook
-    /// sender. ``bot`` says whose. Every plan answers it.
+    /// sender. ``bot`` says whose. On a paid plan or the trial; `false` on Unlimited.
     public let isBot: Bool
     /// In Anycast IP: announced from many places at once.
     public let isAnycast: Bool
-    /// In Carrier IP: a mobile carrier's address space.
+    /// In Carrier IP: a mobile carrier's address space. On a paid plan or the
+    /// trial; `false` on Unlimited.
     public let isCarrier: Bool
-    /// In Satellite IP: a satellite operator's address space.
+    /// In Satellite IP: a satellite operator's address space. On a paid plan or
+    /// the trial; `false` on Unlimited.
     public let isSatellite: Bool
-    /// In SSH IP: an SSH server answered here.
+    /// In SSH IP: an SSH server answered here. On a paid plan or the trial;
+    /// `false` on Unlimited.
     public let isSsh: Bool
-    /// In SMTP IP: a mail server answered here.
+    /// In SMTP IP: a mail server answered here. On a paid plan or the trial;
+    /// `false` on Unlimited.
     public let isSmtp: Bool
-    /// In Web IP: a web server answered here on port 80 or 443.
+    /// In Web IP: a web server answered here on port 80 or 443. On a paid plan or
+    /// the trial; `false` on Unlimited.
     public let isWeb: Bool
-    /// In DNS Resolver IP: an open DNS resolver answered here.
+    /// In DNS Resolver IP: an open DNS resolver answered here. On a paid plan or
+    /// the trial; `false` on Unlimited.
     public let isDnsResolver: Bool
-    /// In BitTorrent IP: a BitTorrent client was seen here in the last 90 days.
+    /// In BitTorrent IP: a BitTorrent client was seen here in the last 90 days. On a
+    /// paid plan or the trial; `false` on Unlimited.
     public let isBittorrent: Bool
 
     /// VPN IP's row, empty when `isVpn` is false. On a paid plan or the trial.
@@ -449,7 +462,8 @@ public struct Asn: Sendable, Hashable {
     public let name: String
     /// The AS operator's own domain.
     public let domain: String
-    /// The kind of network it runs.
+    /// The kind of network it runs, empty where the answer carries none. On a paid
+    /// plan or the trial.
     public let type: String
     /// The announced prefix covering the address.
     public let prefix: String
@@ -536,6 +550,8 @@ public struct HostedDomains: Sendable, Hashable {
 // The one place a served answer becomes the public shape. Absent-versus-false
 // survives for free: every member the spec does not require is already an
 // Optional, so copying it across cannot collapse `false` into "not in your plan".
+// The eight flags below are the held exception: spec 2026.11.26 made them
+// optional, and their public type stays `Bool` until the next major.
 extension LookupResult {
     init(_ body: Components.Schemas.LookupResponse) throws {
         self.ip = body.ip
@@ -549,15 +565,15 @@ extension LookupResult {
         self.isPubproxy = body.isPubproxy
         self.isHosting = body.isHosting
         self.isCdn = body.isCdn
-        self.isBot = body.isBot
+        self.isBot = body.isBot ?? false
         self.isAnycast = body.isAnycast
-        self.isCarrier = body.isCarrier
-        self.isSatellite = body.isSatellite
-        self.isSsh = body.isSsh
-        self.isSmtp = body.isSmtp
-        self.isWeb = body.isWeb
-        self.isDnsResolver = body.isDnsResolver
-        self.isBittorrent = body.isBittorrent
+        self.isCarrier = body.isCarrier ?? false
+        self.isSatellite = body.isSatellite ?? false
+        self.isSsh = body.isSsh ?? false
+        self.isSmtp = body.isSmtp ?? false
+        self.isWeb = body.isWeb ?? false
+        self.isDnsResolver = body.isDnsResolver ?? false
+        self.isBittorrent = body.isBittorrent ?? false
         self.vpn = try body.vpn.map { try ClassDetail($0.value1, "vpn") }
         self.tor = try ClassDetail(body.tor.value1, "tor")
         self.relay = try ClassDetail(body.relay.value1, "relay")
@@ -784,7 +800,7 @@ extension Asn {
         self.asn = Int(asNumber: wire.asn)
         self.name = wire.name
         self.domain = wire.domain
-        self.type = wire._type
+        self.type = wire._type ?? ""
         self.prefix = wire.prefix
         self.country = wire.country
         self.rpkiStatus = wire.rpkiStatus

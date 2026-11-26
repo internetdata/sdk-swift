@@ -58,6 +58,7 @@ public struct InternetDataClient: Sendable {
             middlewares.append(AuthMiddleware(apiKey: apiKey))
         }
         middlewares.append(ErrorMiddleware())
+        middlewares.append(HeldFlagMiddleware())
 
         // Resolved once, because the download path calls object storage straight
         // through the transport rather than through the generated client and has
@@ -589,7 +590,7 @@ public struct InternetDataClient: Sendable {
                     answers[ip] = .failure(.unreadable("the entry for \(ip)", status: status))
                     continue
                 }
-                guard let answer = try? LookupResult(served) else {
+                guard let answer = try? LookupResult(served.response) else {
                     answers[ip] = .failure(.unreadable("the entry for \(ip)", status: status))
                     continue
                 }
@@ -817,7 +818,7 @@ private func authorizationServer(of baseURL: URL) -> URL {
 /// A batch's answer with each entry kept apart, so one the client cannot read
 /// fails only its own address.
 private struct BatchEnvelope: Decodable {
-    var results: [String: Entry<Components.Schemas.LookupResponse>]?
+    var results: [String: Entry<LookupAnswer>]?
     var errors: [String: Entry<Components.Schemas.BatchLookupError>]?
 
     /// One entry, or nil where it could not be read.

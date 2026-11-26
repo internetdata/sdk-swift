@@ -218,7 +218,13 @@ struct LookupTests {
         body["relay"] = row(12)
         body["hosting"] = row(13)
         body["cdn"] = row(14)
-        body["is_bot"] = true
+        // A mix, so a flag mapped to its neighbor's member reads back wrong.
+        for (flag, served) in [
+            ("is_bot", true), ("is_carrier", true), ("is_satellite", false), ("is_ssh", true),
+            ("is_smtp", false), ("is_web", true), ("is_dns_resolver", false), ("is_bittorrent", true),
+        ] {
+            body[flag] = served
+        }
         body["bot"] = [
             "provider": "b", "provider_name": "B", "agents": ["Googlebot", "GoogleOther"],
             "categories": ["search_engine", "ai_search"], "verified": true, "identity": "verified",

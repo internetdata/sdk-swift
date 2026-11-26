@@ -208,6 +208,93 @@ struct ErrorMiddleware: ClientMiddleware {
     }
 }
 
+/// The eight flags spec 2026.11.26 stopped requiring, since Unlimited's answer leaves
+/// them out. Their public type stays `Bool` until the next major, so an answer
+/// without one reads `false` (``LookupResult``).
+///
+/// The generated `Bool?` reads a served `null` as absent, where the spec's required
+/// member refused it, so a `null` is refused here, ahead of the generated decoder.
+enum HeldFlags {
+    static let names = [
+        "is_bot", "is_carrier", "is_satellite", "is_ssh", "is_smtp", "is_web", "is_dns_resolver",
+        "is_bittorrent",
+    ]
+
+    /// The first of them the object being decoded serves as `null`.
+    static func nullMember(in decoder: any Decoder) -> String? {
+        guard let members = try? decoder.container(keyedBy: Member.self) else {
+            return nil
+        }
+        return names.first { name in
+            let key = Member(stringValue: name)
+            return members.contains(key) && (try? members.decodeNil(forKey: key)) == true
+        }
+    }
+
+    struct Member: CodingKey {
+        let stringValue: String
+        let intValue: Int? = nil
+
+        init(stringValue: String) {
+            self.stringValue = stringValue
+        }
+
+        init?(intValue: Int) {
+            nil
+        }
+    }
+}
+
+/// A lookup answer as the generated type reads it, a held flag served as `null` refused.
+struct LookupAnswer: Decodable {
+    let response: Components.Schemas.LookupResponse
+
+    init(from decoder: any Decoder) throws {
+        if let name = HeldFlags.nullMember(in: decoder) {
+            throw DecodingError.valueNotFound(
+                Bool.self, .init(codingPath: decoder.codingPath, debugDescription: "\(name) is null"),
+            )
+        }
+        response = try Components.Schemas.LookupResponse(from: decoder)
+    }
+}
+
+/// Refuses a single lookup's answer that serves a held flag as `null`, before the
+/// generated client reads it; a batch entry is held to the same in ``LookupAnswer``.
+struct HeldFlagMiddleware: ClientMiddleware {
+    private struct Probe: Decodable {
+        let nullMember: String?
+
+        init(from decoder: any Decoder) throws {
+            nullMember = HeldFlags.nullMember(in: decoder)
+        }
+    }
+
+    func intercept(
+        _ request: HTTPRequest,
+        body: HTTPBody?,
+        baseURL: URL,
+        operationID: String,
+        next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?),
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        let (response, responseBody) = try await next(request, body, baseURL)
+        let status = Int(response.status.code)
+        guard operationID == "lookupIp" || operationID == "lookupMyIp", (200..<300).contains(status),
+            let responseBody
+        else {
+            return (response, responseBody)
+        }
+        // A failure to read the body is what the generated decoder's was: the 2xx's own.
+        guard let bytes = try? await ArraySlice(collecting: responseBody, upTo: .max) else {
+            throw InternetDataError.unreadable("the response", status: status)
+        }
+        if let name = (try? JSONDecoder().decode(Probe.self, from: Data(bytes)))?.nullMember {
+            throw InternetDataError.unreadable("\(name) of null", status: status)
+        }
+        return (response, HTTPBody(bytes))
+    }
+}
+
 /// The `Location` a download redirect carried, exactly as served.
 ///
 /// The generated client reads that header as a URI component and percent-decodes
