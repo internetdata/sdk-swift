@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 2.3.1 are described by their release commits.
 
+## 3.4.0 - 2026-11-26
+
+### Fixes
+
+- Read a keyless answer without the bot, carrier, satellite and service flags ([`d50b01d`](https://github.com/internetdata/sdk-swift/commit/d50b01dc25a98158ae5161083577fb540be8bbe2))
+
 ## 3.3.0 - 2026-11-25
 
 ### Features
