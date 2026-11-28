@@ -68,9 +68,11 @@ public struct Entitlement: Sendable, Hashable {
         /// of an uncapped paid plan and is not the same as zero. Above the
         /// quota and below this, requests are served and billed as overage.
         public let hardLimit: Int64?
-        /// When the current allowance period began.
+        /// When the current allowance period began. On the free plan, when its
+        /// trial began, or now before a first lookup starts it.
         public let windowStart: Date
-        /// When the allowance next resets.
+        /// When the allowance next resets. On the free plan, when its trial ends,
+        /// which it does once.
         public let windowEnd: Date
     }
 }
