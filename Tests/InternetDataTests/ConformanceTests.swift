@@ -20,6 +20,9 @@ struct ConformanceTests {
         "is_bittorrent",
     ]
 
+    // The AS's type is held the same way: a `String`, so an answer without one reads it empty.
+    static let heldInAsn = ["type"]
+
     /// The corpus is worth nothing if a rename quietly empties it.
     @Test("the corpus carries every fixture family")
     func corpusIsPopulated() {
@@ -113,7 +116,7 @@ struct ConformanceTests {
 
             let served = testCase.body.normalized
             #expect(
-                wire == (testCase.call == "lookup" ? Self.readingHeldFlags(served) : served),
+                wire == (testCase.call == "lookup" ? Self.readingHeldMembers(served) : served),
                 "\(label): the answer is not what was served",
             )
             for (name, want) in testCase.expect.present {
@@ -141,7 +144,14 @@ struct ConformanceTests {
             }
             for (object, names) in testCase.expect.absentIn ?? [:] {
                 for name in names {
-                    #expect(wire[object]?[name] == nil, "\(label): \(object).\(name) must be ABSENT")
+                    if object == "asn", Self.heldInAsn.contains(name) {
+                        #expect(
+                            wire[object]?[name] == .string(""),
+                            "\(label): \(object).\(name) is held at String, so absent reads empty",
+                        )
+                    } else {
+                        #expect(wire[object]?[name] == nil, "\(label): \(object).\(name) must be ABSENT")
+                    }
                 }
             }
         }
@@ -583,13 +593,19 @@ extension ConformanceTests {
     }
 
     /// A served address answer as this library reads it: a held flag it does not
-    /// carry is false.
-    static func readingHeldFlags(_ served: JSONValue) -> JSONValue {
+    /// carry is false, and the AS's type it does not carry is empty.
+    static func readingHeldMembers(_ served: JSONValue) -> JSONValue {
         guard case .object(var members) = served else {
             return served
         }
         for name in heldFlags where members[name] == nil {
             members[name] = .bool(false)
+        }
+        if case .object(var asn)? = members["asn"] {
+            for name in heldInAsn where asn[name] == nil {
+                asn[name] = .string("")
+            }
+            members["asn"] = .object(asn)
         }
         return .object(members)
     }
